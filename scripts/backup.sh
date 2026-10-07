@@ -210,6 +210,11 @@ run_group() {
         while IFS= read -r file; do
             run rm -f "${file}"
         done < <(backup_prune_staging "${staging}" "${STAGING_KEEP}")
+        # Hooks that only name paths (like the files example) leave their
+        # directory empty; it would otherwise show up in every snapshot.
+        if [[ -d "${staging}" ]]; then
+            run find "${staging}" -mindepth 1 -maxdepth 1 -type d -empty -delete
+        fi
         [[ -d "${staging}" ]] && paths+=("${staging}")
         [[ -f "${PROJECTS_ROOT}/${group}/.env" ]] && paths+=("${PROJECTS_ROOT}/${group}/.env")
         while IFS= read -r path || [[ -n "${path}" ]]; do
