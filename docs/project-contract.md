@@ -101,9 +101,14 @@ after a server reboot.
 
 ## 8. Backup hook and a dedicated database user
 
-A project with data has a hook in `/etc/vps-stack/hooks/` that dumps the
-database (see `examples/backup-hook-mysql.sh.example`) and names the
+A project with data has its backup group (`vps-stack backup init
+<project>`) and hooks in `/etc/vps-stack/hooks/<project>/` that dump the
+database (see `examples/backup-hook-mysql.sh.example`) and name the
 directories holding user files (`examples/backup-hook-files.sh.example`).
+
+User files live in a **bind mount below the project directory** (e.g.
+`./storage/uploads:/var/www/storage/uploads`), not in a named Docker volume:
+the hook can name a plain, stable path.
 
 The dump is made by a **dedicated database user** with minimal privileges, not
 by the database root and not by the application's user.
@@ -133,6 +138,7 @@ mistake).
 - [ ] `X-Forwarded-*` headers passed on, trusted proxies set in the application
 - [ ] a consistent upload limit
 - [ ] `mem_limit` and `restart: unless-stopped` on every service
-- [ ] a backup hook and a dedicated database user
+- [ ] a backup group, hooks and a dedicated database user
+- [ ] user files in a bind mount below the project directory
 - [ ] a health endpoint wired into monitoring
 - [ ] passwords on auxiliary services

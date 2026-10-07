@@ -26,8 +26,8 @@ relies on:
 
 - commands, their options and exit codes;
 - the keys and the meaning of values in `stack.env`, `proxy.env`,
-  `restic.env` and `monitor.env`;
-- paths: `/etc/vps-stack`, `/srv/data`, `/srv/backup-staging`, the log files
+  `backup/<group>.env` and `monitor.env`;
+- paths: `/etc/vps-stack`, `/srv/data`, `/srv/backup-staging`, `/srv/backups`, the log files
   and the system files listed in [architecture.md](architecture.md);
 - the contracts with projects: the proxy network
   ([project-contract.md](project-contract.md)) and the backup hooks

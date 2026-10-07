@@ -41,7 +41,8 @@ on a **fresh, disposable machine**: a cheap VPS billed by the hour or a
 virtual machine with a full systemd. A Docker container is not suitable.
 
 Record the result of every step. Before you start, prepare: an SSH key, a test
-domain whose DNS you can change, and a restic repository for testing.
+domain whose DNS you can change, and a test project with a MySQL or MariaDB
+database.
 
 ### 0. Preparation
 
@@ -143,15 +144,25 @@ Following [adding-sites.md](adding-sites.md):
 
 Following [backup-restore.md](backup-restore.md):
 
-- [ ] `sudo vps-stack backup init`: the repository is created; a second call
-      changes nothing.
-- [ ] A test hook (database dump from a container) installed.
-- [ ] `sudo vps-stack backup run`: exit code 0, `BACKUP_OK` in the log.
-- [ ] A hook broken on purpose: the backup ends with a non-zero code, and the
-      remaining data still reaches the repository.
-- [ ] `restic ls latest` contains neither `restic.env` nor `restic.password`.
+- [ ] `restic version` noted: Ubuntu 24.04 ships an older restic than the
+      one the local integration test used (0.18).
+- [ ] `sudo vps-stack backup init system` and `backup init <project>`: files
+      in `/etc/vps-stack/backup/` (600), repositories in `/srv/backups/`; a
+      second call changes nothing.
+- [ ] Hooks from the examples installed in `/etc/vps-stack/hooks/<project>/`.
+- [ ] `sudo vps-stack backup run`: exit code 0, `BACKUP_OK <group>` in the log
+      for every group; `backup list` shows them.
+- [ ] A second run after a small change in the database: the repository grows
+      by far less than the size of the dump.
+- [ ] A hook broken on purpose: the run ends with a non-zero code, the other
+      groups still get `BACKUP_OK`.
+- [ ] The `system` snapshot contains nothing from `/etc/vps-stack/backup/`.
+- [ ] `backup restore <project> --target /tmp/r`, the dump imported into a
+      temporary database: the row counts match.
+- [ ] `backup export <project> --output /root/<project>.tar`: the archive has
+      the dump, the files and `.env`.
 - [ ] `sudo vps-stack backup setup`: a file in `/etc/cron.d`, and after 6
-      hours another `BACKUP_OK` entry in the log.
+      hours new `BACKUP_OK` entries in the log.
 - [ ] **Restore test** from section (b): the dump imports into a temporary
       database, the number of tables and rows matches.
 
