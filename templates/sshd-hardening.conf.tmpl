@@ -1,0 +1,15 @@
+# Managed by vps-stack (provision / ssh-port). Manual edits are overwritten.
+# The 00- prefix is deliberate: sshd uses the first value it reads for each
+# option, so this file has to sort before any drop-in shipped with the image.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+AllowUsers {{ALLOW_USERS}}
+MaxAuthTries 3
+LoginGraceTime 20
+X11Forwarding no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+{{PORT_LINE}}

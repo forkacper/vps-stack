@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Example backup hook: dump of a MySQL/MariaDB database from a project
+# container.
+#
+# Installation:
+#   sudo install -m 700 examples/backup-hook-mysql.sh.example /etc/vps-stack/hooks/example-app-db.sh
+#   (the file name without .sh becomes the hook name and the dump directory)
+#
+# Contract (variables set by `vps-stack backup run`):
+#   STAGING_DIR            directory for local dumps, e.g. /srv/backup-staging
+#   HOOK_NAME              hook name; write dumps to $STAGING_DIR/$HOOK_NAME/
+#   HOOK_EXTRA_PATHS_FILE  file to which additional paths may be appended
+# The hook has to fail when the dump is empty or corrupt.
+#
+# pipefail is essential here: without it a mysqldump error in the pipe to
+# gzip would be masked and a "valid" empty dump would be produced.
+set -euo pipefail
+
+# TODO(user): project directory holding docker-compose.yml
+PROJECT_DIR="/srv/example-app"
+# TODO(user): name of the database service in the project's compose file
+DB_SERVICE="db"
+# TODO(user): database name
+DB_NAME="example_app"
+# TODO(user): dedicated user for dumps (NOT root). The privileges it needs
+# depend on the database and the options used; typically: SELECT, SHOW VIEW,
+# TRIGGER, EVENT, LOCK TABLES. Check the documentation of your database
+# version.
+DB_BACKUP_USER="backup"
+# The password of that user is NOT written here. The database container has
+# to have the DB_BACKUP_PASSWORD environment variable (TODO(user): add it to
+# the project's .env). This keeps the password out of this file and out of
+# the host's process list.
+
+: "${STAGING_DIR:?the hook is started by: vps-stack backup run}"
+: "${HOOK_NAME:?the hook is started by: vps-stack backup run}"
+
+target_dir="${STAGING_DIR}/${HOOK_NAME}"
+target="${target_dir}/${DB_NAME}-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+mkdir -p "${target_dir}"
+umask 077
+
+cd "${PROJECT_DIR}"
+
+# Written to a temporary file: an unfinished dump never passes for a
+# complete one.
+# TODO(user): in MariaDB images the command may be called mariadb-dump.
+docker compose exec -T \
+    -e "DB_BACKUP_USER=${DB_BACKUP_USER}" -e "DB_NAME=${DB_NAME}" \
+    "${DB_SERVICE}" sh -c '
+        export MYSQL_PWD="${DB_BACKUP_PASSWORD:?DB_BACKUP_PASSWORD is not set in the database container}"
+        exec mysqldump --user="${DB_BACKUP_USER}" \
+            --single-transaction --quick --routines --triggers --no-tablespaces \
+            "${DB_NAME}"
+    ' | gzip >"${target}.tmp"
+
+if [[ ! -s "${target}.tmp" ]]; then
+    echo "The dump of ${DB_NAME} is empty." >&2
+    rm -f "${target}.tmp"
+    exit 1
+fi
+if ! gzip -t "${target}.tmp"; then
+    echo "The dump of ${DB_NAME} is corrupt (gzip -t)." >&2
+    rm -f "${target}.tmp"
+    exit 1
+fi
+mv "${target}.tmp" "${target}"
+echo "Dump written: ${target}"

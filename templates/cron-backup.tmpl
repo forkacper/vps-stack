@@ -1,0 +1,6 @@
+# Managed by vps-stack (backup setup). Manual edits are overwritten.
+# Every 6 hours. The schedule follows the system time zone, which provision
+# sets to Etc/UTC by default. Output goes to the backup log, not to mail.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+15 */6 * * * root {{VPS_STACK_BIN}} backup run >/dev/null 2>&1

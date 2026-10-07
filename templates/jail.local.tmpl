@@ -1,0 +1,11 @@
+# Managed by vps-stack (provision / ssh-port). Manual edits are overwritten.
+[DEFAULT]
+backend = {{BACKEND}}
+ignoreip = 127.0.0.1/8 ::1{{IGNOREIP}}
+bantime = 1h
+findtime = 10m
+maxretry = 5
+
+[sshd]
+enabled = true
+port = {{SSH_PORT}}

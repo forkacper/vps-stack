@@ -1,0 +1,65 @@
+# Minimal example of a project that fits vps-stack (web + application +
+# database). The rules are described in docs/project-contract.md. This is a
+# skeleton, not a ready configuration: application-specific places are marked
+# TODO(user).
+#
+# Once the project is running, add its domain:
+#   sudo vps-stack add-site app.example.com example-app-web:80
+
+services:
+  web:
+    # TODO(user): image and configuration of the web server (e.g. nginx). It
+    # has to pass the X-Forwarded-Proto and X-Forwarded-For headers received
+    # from Caddy on to the application, without overwriting them with its own
+    # values.
+    image: example/web:TODO
+    # Unique name: this is the upstream given to `add-site`.
+    container_name: example-app-web
+    restart: unless-stopped
+    mem_limit: 128m
+    # No `ports:`. Traffic from the internet gets here only through the proxy.
+    networks:
+      - proxy
+      - internal
+    depends_on:
+      - app
+
+  app:
+    # TODO(user): application image. Configure trusted proxies in the
+    # application (the Docker network addresses), otherwise HTTPS detection,
+    # session cookies and OAuth callback URLs may be wrong.
+    image: example/app:TODO
+    restart: unless-stopped
+    mem_limit: 512m
+    env_file: .env
+    networks:
+      - internal
+    depends_on:
+      - db
+    # TODO(user): application health endpoint for external monitoring.
+
+  db:
+    # TODO(user): database image pinned to a specific version tag.
+    image: example/database:TODO
+    restart: unless-stopped
+    mem_limit: 768m
+    env_file: .env
+    volumes:
+      - db-data:/var/lib/TODO
+    # Internal network only. If you need access from the host (e.g. through
+    # an SSH tunnel), publish on localhost only:
+    # ports:
+    #   - "127.0.0.1:3306:3306"
+    networks:
+      - internal
+
+networks:
+  # Shared network created by `vps-stack provision` (PROXY_NETWORK).
+  proxy:
+    external: true
+  # Private network of the project: the database, cache and workers are not
+  # visible to other projects or to the proxy.
+  internal:
+
+volumes:
+  db-data:
