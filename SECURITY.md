@@ -38,5 +38,5 @@ seriously, but a reply may take a while.
 
 ## Supported versions
 
-Fixes go only into the latest version on the master branch. The `0.x` series is
-alpha.
+Fixes go only into the next release from the master branch; older versions
+get no fixes. See [docs/releasing.md](docs/releasing.md).

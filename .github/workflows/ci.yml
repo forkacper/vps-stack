@@ -7,6 +7,8 @@ on:
   push:
     branches: [master]
   pull_request:
+  # Run by the release workflow before a release is created.
+  workflow_call:
 
 permissions:
   contents: read
@@ -24,7 +26,7 @@ jobs:
 
       - name: Syntax check (bash -n)
         run: |
-          for file in bin/vps-stack lib/*.sh scripts/*.sh tests/helpers.bash examples/*.sh.example; do
+          for file in bin/vps-stack lib/*.sh scripts/*.sh .github/scripts/*.sh tests/helpers.bash examples/*.sh.example; do
             bash -n "${file}"
           done
 
@@ -32,7 +34,16 @@ jobs:
       - name: shellcheck
         run: |
           shellcheck --version
-          shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh tests/helpers.bash examples/*.sh.example </dev/null
+          shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh .github/scripts/*.sh tests/helpers.bash examples/*.sh.example </dev/null
+
+      # VERSION is the last released version and has its CHANGELOG section;
+      # changes since then are collected under [Unreleased].
+      - name: Version and changelog
+        run: |
+          version="$(cat VERSION)"
+          echo "VERSION: ${version}"
+          .github/scripts/release-notes.sh "${version}" >/dev/null
+          grep -qx '## \[Unreleased\]' CHANGELOG.md
 
       # The status page tests need jq, which the bats image does not ship.
       - name: bats
