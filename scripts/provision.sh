@@ -819,6 +819,20 @@ step_summary() {
         fi
     done </etc/passwd
 
+    if is_dry_run; then
+        if [[ -n "${others}" ]]; then
+            printf '\nOther users with a shell on this server: %s. After provisioning they will no longer log in over SSH (AllowUsers).\n' "${others}"
+        fi
+        if [[ "${REPORT_ERRORS}" -gt 0 ]]; then
+            printf '\nDry run finished WITH ERRORS (%s). Nothing was changed.\n' "${REPORT_ERRORS}"
+            STOPPED_ON_PURPOSE=1
+            CURRENT_STEP=0
+            exit 1
+        fi
+        printf '\nDry run finished: nothing was changed. Run the command again without --dry-run to apply it.\n'
+        return 0
+    fi
+
     cat <<NEXT
 
 Manual steps (the script does not do them):

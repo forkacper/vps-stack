@@ -9,6 +9,18 @@ incompatible way.
 
 ## [Unreleased]
 
+### Fixed
+
+- `provision` failed at the "Users" step on Ubuntu cloud images: they already
+  have a group named `admin` (created by cloud-init), and `useradd admin`
+  refuses to run. Preflight now refuses an account name taken by a group,
+  before anything is changed, and the default administrator name is
+  `sysadmin`. An existing `stack.env` with `ADMIN_USER=admin` keeps working
+  where no such group exists.
+- `provision --dry-run` no longer ends with "Provisioning finished" and does
+  not claim that other users are already blocked; it says that nothing was
+  changed, and ends with an error code when the preview found errors.
+
 ## [0.4.0] - 2026-10-07
 
 ### Added
