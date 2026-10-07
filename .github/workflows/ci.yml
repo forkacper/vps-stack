@@ -55,10 +55,14 @@ jobs:
           test -n "${image}"
           sites="$(mktemp -d)"
           chmod 755 "${sites}"
+          # The status page logs to this directory; Caddy opens the file
+          # during validation.
+          logs="$(mktemp -d)"
           validate() {
             docker run --rm -e ACME_EMAIL=admin@example.com \
               -v "${PWD}/proxy/Caddyfile:/etc/caddy/Caddyfile:ro" \
               -v "${sites}:/etc/caddy/sites:ro" \
+              -v "${logs}:/var/log/vps-stack-monitor" \
               "${image}" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1
           }
 
@@ -82,6 +86,24 @@ jobs:
             echo "Caddy did not see the generated site file" >&2
             exit 1
           fi
+
+          # Status page: a real hash from the pinned image, then an empty
+          # and a non-empty ban list.
+          hash="$(printf 'ci-only\n' | docker run --rm -i "${image}" caddy hash-password --bcrypt-cost 10)"
+          bash -c 'source lib/common.sh; source lib/validate.sh; source lib/monitor.sh
+            monitor_site_render templates/site-monitor.caddy.tmpl status.example.com monitor-ci "$1"' \
+            _ "${hash}" >"${sites}/_monitor.caddy"
+          chmod 644 "${sites}/_monitor.caddy"
+          for bans in "" "203.0.113.7 2001:db8::1"; do
+            # shellcheck disable=SC2086  # word splitting wanted: list of addresses
+            bash -c 'source lib/common.sh; source lib/validate.sh; source lib/monitor.sh
+              monitor_ban_snippet "$@"' _ ${bans} >"${sites}/.monitor-banned"
+            chmod 644 "${sites}/.monitor-banned"
+            echo "::group::status page, bans: ${bans:-none}"
+            cat "${sites}/.monitor-banned"
+            validate
+            echo "::endgroup::"
+          done
 
       - name: Healthcheck command exists in the image
         run: |

@@ -152,6 +152,112 @@ validate_port() {
     [[ "${port}" -ge 1 && "${port}" -le 65535 ]]
 }
 
+# validate_monitor_user <value>: login of the status page.
+validate_monitor_user() {
+    local LC_ALL=C
+    local re='^[a-z0-9][a-z0-9_-]{2,31}$'
+    if [[ ! "${1:-}" =~ ${re} ]]; then
+        _validate_fail "the login must be 3 to 32 characters: a-z, 0-9, _ and -, starting with a letter or digit."
+        return 1
+    fi
+}
+
+# validate_bcrypt_hash <value>: a hash as printed by `caddy hash-password`.
+validate_bcrypt_hash() {
+    local LC_ALL=C
+    # shellcheck disable=SC2016  # the dollar signs are literal parts of the pattern
+    local re='^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$'
+    if [[ ! "${1:-}" =~ ${re} ]]; then
+        _validate_fail "not a bcrypt hash."
+        return 1
+    fi
+}
+
+# normalize_ip <value>: print a plain IPv4 or IPv6 address in lowercase, or
+# fail. No CIDR, no zone, no IPv4-mapped IPv6 forms.
+normalize_ip() {
+    local LC_ALL=C
+    local ip octet group count=0
+    local re_v4='^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$'
+    local -a groups
+    ip="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+    if [[ "${ip}" =~ ${re_v4} ]]; then
+        for octet in "${BASH_REMATCH[@]:1}"; do
+            if [[ "${octet}" == 0?* || "$((10#${octet}))" -gt 255 ]]; then
+                _validate_fail "'${1:-}' is not an IPv4 address."
+                return 1
+            fi
+        done
+        printf '%s\n' "${ip}"
+        return 0
+    fi
+    # IPv6: hex groups of 1-4 digits, at most one "::", 8 groups without it.
+    if [[ ! "${ip}" =~ ^[0-9a-f:]{2,39}$ || "${ip}" != *:* || "${ip}" == *:::* ]]; then
+        _validate_fail "'${1:-}' is not an IP address."
+        return 1
+    fi
+    case "${ip}" in
+        *::*::*)
+            _validate_fail "'${1:-}' is not an IPv6 address."
+            return 1
+            ;;
+        *) ;;
+    esac
+    IFS=':' read -r -a groups <<<"${ip}"
+    for group in "${groups[@]}"; do
+        if [[ "${#group}" -gt 4 ]]; then
+            _validate_fail "'${1:-}' is not an IPv6 address."
+            return 1
+        fi
+        [[ -n "${group}" ]] && count=$((count + 1))
+    done
+    if [[ "${ip}" == *::* && "${count}" -gt 7 ]] || [[ "${ip}" != *::* && "${count}" -ne 8 ]]; then
+        _validate_fail "'${1:-}' is not an IPv6 address."
+        return 1
+    fi
+    case "${ip}" in
+        :[!:]* | *[!:]:)
+            _validate_fail "'${1:-}' is not an IPv6 address."
+            return 1
+            ;;
+        *) ;;
+    esac
+    printf '%s\n' "${ip}"
+}
+
+# ip_is_public <normalized ip>: true for an address that can belong to a
+# client on the internet. Private, loopback, link-local, shared (CGNAT),
+# multicast and reserved ranges are not public. Docker's own networks live in
+# the private ranges, so they are never treated as public either.
+ip_is_public() {
+    local ip="$1" a b first
+    if [[ "${ip}" == *.* ]]; then
+        a="${ip%%.*}"
+        b="${ip#*.}"
+        b="${b%%.*}"
+        case "${a}" in
+            0 | 10 | 127) return 1 ;;
+            *) ;;
+        esac
+        [[ "${a}" -ge 224 ]] && return 1
+        [[ "${a}" == "169" && "${b}" == "254" ]] && return 1
+        [[ "${a}" == "172" && "${b}" -ge 16 && "${b}" -le 31 ]] && return 1
+        [[ "${a}" == "192" && "${b}" == "168" ]] && return 1
+        [[ "${a}" == "100" && "${b}" -ge 64 && "${b}" -le 127 ]] && return 1
+        return 0
+    fi
+    # IPv6: look at the first group padded to 4 digits. "::..." starts with
+    # 0000 (unspecified, loopback, IPv4-compatible and similar): not public.
+    first="${ip%%:*}"
+    while [[ "${#first}" -lt 4 ]]; do
+        first="0${first}"
+    done
+    case "${first}" in
+        0000 | fc?? | fd?? | fe[89ab]? | ff??) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 # normalize_domain_list <csv>: print one normalized domain per line.
 normalize_domain_list() {
     local csv="${1:-}" item normalized

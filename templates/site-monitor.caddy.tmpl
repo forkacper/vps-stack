@@ -1,0 +1,38 @@
+# Managed by vps-stack (monitor). Manual edits are overwritten.
+# Status page: vps-stack monitor enable | disable | password.
+{{DOMAIN}} {
+    import common
+    # Read by the fail2ban jail vps-stack-monitor. Caddy rotates the file.
+    log {
+        output file /var/log/vps-stack-monitor/access.log {
+            roll_size 10MiB
+            roll_keep 5
+        }
+        format json
+    }
+    header {
+        Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        X-Frame-Options "DENY"
+        Cache-Control "no-store"
+        X-Robots-Tag "noindex, nofollow"
+    }
+    # `route` keeps this order. Without it Caddy would check the password
+    # before the ban, and a banned address could keep guessing.
+    route {
+        # 1. Addresses banned by fail2ban: the connection is closed.
+        import /etc/caddy/sites/.monitor-banned
+        # 2. Login and password (only the bcrypt hash is stored).
+        basic_auth {
+            {{USER}} {{HASH}}
+        }
+        # 3. Content: the data file written by the collector and the page.
+        handle /status.json {
+            root * /srv/vps-stack-monitor/data
+            file_server
+        }
+        handle {
+            root * /srv/vps-stack-monitor/www
+            file_server
+        }
+    }
+}
