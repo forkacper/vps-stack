@@ -9,6 +9,8 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-08
+
 **Run once on existing servers: `sudo vps-stack proxy network-ipv6`**
 (a short outage of all sites while the network is recreated).
 
@@ -172,7 +174,8 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/forkacper/vps-stack/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/forkacper/vps-stack/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/forkacper/vps-stack/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/forkacper/vps-stack/compare/v0.3.0...v0.4.0
