@@ -143,7 +143,7 @@ out a newer release tag) does not touch it.
 | `vps-stack remove-site <domain>` | removes a site (the file is moved aside, not deleted) |
 | `vps-stack list-sites` | lists domains, upstreams, aliases and redirects |
 | `vps-stack check-dns <domain>...` | checks that a domain points at this server |
-| `vps-stack proxy up\|down\|restart\|reload\|validate\|status\|logs` | manages the proxy container |
+| `vps-stack proxy up\|down\|restart\|reload\|validate\|status\|logs\|network-ipv6` | manages the proxy container; `network-ipv6` moves an IPv4-only proxy network to IPv6 |
 | `vps-stack backup init\|run\|list\|snapshots\|restore\|export\|setup` | backup per project: set up, run, inspect, restore into a new directory, export an archive, schedule |
 | `vps-stack monitor enable <domain>\|disable\|password\|status\|refresh` | optional status page: resources, containers and 7 days of history, behind a login |
 | `vps-stack version`, `vps-stack help` | version and help |

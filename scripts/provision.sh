@@ -754,10 +754,17 @@ step_layout() {
     write_file --no-backup /etc/logrotate.d/vps-stack 644 <<<"${content}"
 
     if have_cmd docker; then
+        # With IPv6, so that Caddy sees the real address of IPv6 clients
+        # (see ensure_network in scripts/proxy.sh).
         if ! docker network inspect "${PROXY_NETWORK}" >/dev/null 2>&1; then
-            run docker network create "${PROXY_NETWORK}" >/dev/null
+            run docker network create --ipv6 "${PROXY_NETWORK}" >/dev/null
+            report_add "OK" "Directories and network" "Docker network: ${PROXY_NETWORK} (IPv4 and IPv6)"
+        elif [[ "$(docker network inspect -f '{{.EnableIPv6}}' "${PROXY_NETWORK}" 2>/dev/null)" == "true" ]]; then
+            report_add "OK" "Directories and network" "Docker network: ${PROXY_NETWORK} (IPv4 and IPv6)"
+        else
+            # Not changed here: recreating the network stops every site.
+            report_add "WARN" "Directories and network" "${PROXY_NETWORK} is IPv4 only; run once: sudo vps-stack proxy network-ipv6"
         fi
-        report_add "OK" "Directories and network" "Docker network: ${PROXY_NETWORK}"
     else
         report_add "WARN" "Directories and network" "no Docker network (Docker not installed)"
     fi

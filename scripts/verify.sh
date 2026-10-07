@@ -80,6 +80,19 @@ check_fail2ban() {
     fi
 }
 
+# check_proxy_network: on an IPv4-only proxy network Docker's userland proxy
+# hides the address of every IPv6 client behind the network gateway.
+check_proxy_network() {
+    local ipv6
+    if ! ipv6="$(docker network inspect -f '{{.EnableIPv6}}' "${PROXY_NETWORK}" 2>/dev/null)"; then
+        report_add "ERROR" "Docker: network ${PROXY_NETWORK}" "does not exist (vps-stack proxy up)"
+    elif [[ "${ipv6}" == "true" ]]; then
+        report_add "OK" "Docker: network ${PROXY_NETWORK}" "IPv6 enabled"
+    else
+        report_add "WARN" "Docker: network ${PROXY_NETWORK}" "IPv4 only: IPv6 clients reach the sites as the Docker gateway; fix: sudo vps-stack proxy network-ipv6"
+    fi
+}
+
 check_docker() {
     local info health
     if ! have_cmd docker; then
@@ -100,6 +113,8 @@ check_docker() {
     else
         report_add "WARN" "Docker: log rotation" "no log-opts.max-size in /etc/docker/daemon.json"
     fi
+
+    check_proxy_network
 
     health="$(docker inspect -f '{{.State.Status}}{{if .State.Health}} {{.State.Health.Status}}{{end}}' "${CADDY_CONTAINER}" 2>/dev/null || true)"
     case "${health}" in
