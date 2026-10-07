@@ -110,6 +110,8 @@ The full version with explanations: [docs/quickstart.md](docs/quickstart.md).
 sudo apt-get update && sudo apt-get install -y git
 sudo git clone https://github.com/forkacper/vps-stack.git /opt/vps-stack
 cd /opt/vps-stack
+# The newest release, not the development branch:
+sudo git checkout "$(sudo git tag --list 'v*' --sort=-v:refname | head -n 1)"
 
 # Read the scripts before you run them. Then:
 cp config/stack.env.example ./stack.env      # fill in ADMIN_SSH_PUBKEY_FILE
@@ -206,8 +208,18 @@ cut off existing services and users.
 
 ### How do I update vps-stack?
 
-`cd /opt/vps-stack && sudo git pull`, read [CHANGELOG.md](CHANGELOG.md), and
-after changes in `proxy/` run `sudo vps-stack proxy restart`.
+A server runs a released version (a tag `vX.Y.Z`), not the `master` branch.
+Fetch the tags, read [CHANGELOG.md](CHANGELOG.md) for every version between
+yours and the newest, then check the new one out:
+
+```bash
+cd /opt/vps-stack
+sudo git fetch --tags
+sudo git checkout vX.Y.Z
+```
+
+After changes in `proxy/` run `sudo vps-stack proxy restart`. Versioning and
+releases: [docs/releasing.md](docs/releasing.md).
 
 ## Documentation
 
@@ -222,6 +234,7 @@ after changes in `proxy/` run `sudo vps-stack proxy restart`.
 - [docs/monitoring.md](docs/monitoring.md): the minimum of monitoring and the optional status page
 - [docs/testing.md](docs/testing.md): what is tested and the manual test procedure
 - [docs/decisions.md](docs/decisions.md): reasoning behind the decisions
+- [docs/releasing.md](docs/releasing.md): version numbers, branches, releases and updates
 
 ## Issues and contributing
 

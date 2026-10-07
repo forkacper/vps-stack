@@ -14,6 +14,13 @@ scope (Ansible, Terraform, Traefik, web panels, automatic image updates) will
 most likely be declined: the reasons are in
 [docs/decisions.md](docs/decisions.md).
 
+## Branches and releases
+
+Work on a branch and open a pull request against `master`; it is merged once
+CI is green. Add an entry under `## [Unreleased]` in `CHANGELOG.md` for every
+change a user would notice. Versions and the release procedure:
+[docs/releasing.md](docs/releasing.md).
+
 ## Rules for pull requests
 
 1. **shellcheck reports nothing** for any script. Disabling a rule

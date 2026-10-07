@@ -11,6 +11,11 @@ incompatible way.
 
 ### Added
 
+- Release process: version numbers without pre-release labels, tags
+  `vX.Y.Z` with GitHub releases created by `.github/workflows/release.yml`,
+  a version and changelog check in CI ([docs/releasing.md](docs/releasing.md)).
+  The installation instructions check out the newest release.
+
 - Example GitHub Actions workflow for projects
   (`examples/project-build-workflow.yml.example`): tests, image build and
   push to ghcr.io, with manual deploy and rollback steps. The project Compose
@@ -24,6 +29,9 @@ incompatible way.
 
 ### Changed
 
+- The version has no pre-release label any more: `0.1.0-alpha.1` is now
+  `0.1.0`, and the help, README and start-up warning no longer say "alpha".
+  The warning that the scripts are untested on real servers stays.
 - `add-site`: the duplicate and DNS checks moved to `lib/common.sh`, shared
   with `monitor enable`. The DNS mismatch question now reads "Continue
   despite the DNS mismatch?".
@@ -54,3 +62,6 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
 - bats tests for validation and template rendering, CI (shellcheck, bats,
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
+
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/forkacper/vps-stack/releases/tag/v0.1.0

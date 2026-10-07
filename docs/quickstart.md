@@ -29,7 +29,13 @@ needed.
 sudo apt-get update && sudo apt-get install -y git
 sudo git clone https://github.com/forkacper/vps-stack.git /opt/vps-stack
 cd /opt/vps-stack
+# The newest release, not the development branch:
+sudo git checkout "$(sudo git tag --list 'v*' --sort=-v:refname | head -n 1)"
 ```
+
+The last command switches to the newest release. The `master` branch holds the
+work towards the next one; servers should run released versions
+([releasing.md](releasing.md)).
 
 Read `scripts/provision.sh` before you run it. It runs as root.
 
