@@ -16,6 +16,8 @@ source /dev/stdin <<<"${bats_run_definition}"
 source "${REPO_ROOT}/lib/validate.sh"
 # shellcheck source=lib/monitor.sh
 source "${REPO_ROOT}/lib/monitor.sh"
+# shellcheck source=lib/backup.sh
+source "${REPO_ROOT}/lib/backup.sh"
 
 # render <domain> <upstream> [aliases] [redirects] [max_body]
 render() {
