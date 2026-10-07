@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common.sh"
 # shellcheck source=lib/os-detect.sh
 source "${SCRIPT_DIR}/../lib/os-detect.sh"
+# shellcheck source=lib/backup.sh
+source "${SCRIPT_DIR}/../lib/backup.sh"
 
 usage() {
     cat <<USAGE
@@ -157,10 +159,13 @@ check_permissions() {
         return 0
     fi
     file_has_mode "${ETC_DIR}" 700 || problems="${ETC_DIR} (expected 700)"
-    if [[ -d "${HOOKS_DIR}" ]] && ! file_has_mode "${HOOKS_DIR}" 700; then
-        problems="${problems:+${problems}, }${HOOKS_DIR} (700)"
-    fi
-    for file in "${STACK_ENV_FILE}" "${PROXY_ENV_FILE}" "${RESTIC_ENV_FILE}" "${RESTIC_PASSWORD_DEFAULT_FILE}" "${MONITOR_ENV_FILE}" "${MONITOR_SITE_FILE}"; do
+    for file in "${HOOKS_DIR}" "${BACKUP_CONF_DIR}" "${BACKUP_REPO_ROOT}"; do
+        if [[ -d "${file}" ]] && ! file_has_mode "${file}" 700; then
+            problems="${problems:+${problems}, }${file} (700)"
+        fi
+    done
+    for file in "${STACK_ENV_FILE}" "${PROXY_ENV_FILE}" "${MONITOR_ENV_FILE}" "${MONITOR_SITE_FILE}" \
+        "${BACKUP_CONF_DIR}"/*.env "${BACKUP_CONF_DIR}"/*.password; do
         if [[ -e "${file}" ]] && ! file_has_mode "${file}" 600; then
             problems="${problems:+${problems}, }${file} (600)"
         fi
@@ -172,39 +177,77 @@ check_permissions() {
     fi
 }
 
-check_backup() {
-    local last_ok="" candidate file now last_epoch age_hours
-    if [[ ! -f /etc/cron.d/vps-stack-backup ]]; then
-        report_add "WARN" "Backup: schedule" "no /etc/cron.d/vps-stack-backup (vps-stack backup setup)"
-        return 0
-    fi
-    report_add "OK" "Backup: schedule" "cron installed"
-
-    # The last rotated log (kept uncompressed) first, then the current one,
-    # so the newest entry wins.
-    for file in "${BACKUP_LOG_FILE}.1" "${BACKUP_LOG_FILE}"; do
-        [[ -r "${file}" ]] || continue
-        candidate="$(grep ' BACKUP_OK$' "${file}" | tail -n 1 | awk '{ print $1 }' || true)"
-        if [[ -n "${candidate}" ]]; then
-            last_ok="${candidate}"
-        fi
-    done
+# backup_age_row <group> <note>: one report row from the age of the last
+# successful backup of the group.
+backup_age_row() {
+    local group="$1" note="$2" last_ok now last_epoch age_hours
+    last_ok="$(backup_last_ok "${group}" "${BACKUP_LOG_FILE}.1" "${BACKUP_LOG_FILE}")"
     if [[ -z "${last_ok}" ]]; then
-        report_add "WARN" "Backup: last successful" "no successful backup in the log"
+        report_add "WARN" "Backup: ${group}" "no successful backup in the log; ${note}"
         return 0
     fi
     now="$(date -u +%s)"
     if ! last_epoch="$(date -u -d "${last_ok}" +%s 2>/dev/null)"; then
-        report_add "WARN" "Backup: last successful" "${last_ok} (cannot compute its age)"
+        report_add "WARN" "Backup: ${group}" "${last_ok} (cannot compute its age); ${note}"
         return 0
     fi
     age_hours=$(((now - last_epoch) / 3600))
     if [[ "${age_hours}" -gt 48 ]]; then
-        report_add "ERROR" "Backup: last successful" "${age_hours} h ago (${last_ok})"
+        report_add "ERROR" "Backup: ${group}" "${age_hours} h ago (${last_ok}); ${note}"
     elif [[ "${age_hours}" -gt 13 ]]; then
-        report_add "WARN" "Backup: last successful" "${age_hours} h ago (${last_ok})"
+        report_add "WARN" "Backup: ${group}" "${age_hours} h ago (${last_ok}); ${note}"
     else
-        report_add "OK" "Backup: last successful" "${age_hours} h ago"
+        report_add "OK" "Backup: ${group}" "${age_hours} h ago; ${note}"
+    fi
+}
+
+check_backup() {
+    local group repo note hooks size
+    local -a groups=()
+    if [[ -f "${LEGACY_RESTIC_ENV_FILE}" ]]; then
+        report_add "WARN" "Backup: old layout" "${LEGACY_RESTIC_ENV_FILE} (vps-stack 0.2); see docs/backup-restore.md"
+    fi
+    mapfile -t groups < <(backup_groups)
+    if [[ "${#groups[@]}" -eq 0 ]]; then
+        report_add "WARN" "Backup" "no backup groups (vps-stack backup init system, then <project>)"
+        return 0
+    fi
+    if [[ -f /etc/cron.d/vps-stack-backup ]]; then
+        report_add "OK" "Backup: schedule" "cron installed"
+    else
+        report_add "WARN" "Backup: schedule" "no /etc/cron.d/vps-stack-backup (vps-stack backup setup)"
+    fi
+
+    for group in "${groups[@]}"; do
+        # Read in a subshell: the configuration must not leak into verify.
+        repo="$(
+            RESTIC_REPOSITORY=""
+            load_env_file "$(backup_group_conf "${group}")"
+            printf '%s' "${RESTIC_REPOSITORY}"
+        )" || repo=""
+        if [[ -z "${repo}" ]]; then
+            report_add "ERROR" "Backup: ${group}" "no RESTIC_REPOSITORY in $(backup_group_conf "${group}")"
+            continue
+        fi
+        if backup_repo_is_local "${repo}"; then
+            note="local repository"
+        else
+            note="remote repository"
+        fi
+        backup_age_row "${group}" "${note}"
+        if [[ "${group}" != "${BACKUP_SYSTEM_GROUP}" ]]; then
+            # -print -quit, not `| head -n 1`: under pipefail the pipe can end
+            # with SIGPIPE and stop verify.
+            hooks="$(find "$(backup_group_hooks "${group}")" -maxdepth 1 -name '*.sh' -perm -u+x -print -quit 2>/dev/null || true)"
+            if [[ -z "${hooks}" ]]; then
+                report_add "WARN" "Backup: ${group} hooks" "none in $(backup_group_hooks "${group}"): only .env is backed up"
+            fi
+        fi
+    done
+
+    if [[ -d "${BACKUP_REPO_ROOT}" ]]; then
+        size="$(du -sh "${BACKUP_REPO_ROOT}" 2>/dev/null | awk '{ print $1 }')"
+        report_add "OK" "Backup: local repositories" "${size:-?} in ${BACKUP_REPO_ROOT} (same disk as the data)"
     fi
 }
 

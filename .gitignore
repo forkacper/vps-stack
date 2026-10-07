@@ -8,5 +8,5 @@ restic*
 /local/
 
 # Only the documented examples are tracked. Listed last on purpose: a later
-# pattern wins, and `restic*` above would otherwise hide restic.env.example.
+# pattern wins over `*.env` and `restic*` above.
 !*.env.example

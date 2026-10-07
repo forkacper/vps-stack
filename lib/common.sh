@@ -22,8 +22,12 @@ CADDY_DATA_DIR="${VPS_STACK_CADDY_DATA_DIR:-/srv/data/caddy}"
 STAGING_DIR="${VPS_STACK_STAGING_DIR:-/srv/backup-staging}"
 STACK_ENV_FILE="${ETC_DIR}/stack.env"
 PROXY_ENV_FILE="${ETC_DIR}/proxy.env"
-RESTIC_ENV_FILE="${ETC_DIR}/restic.env"
-RESTIC_PASSWORD_DEFAULT_FILE="${ETC_DIR}/restic.password"
+# Backup groups (lib/backup.sh): configuration, and the local repositories.
+BACKUP_CONF_DIR="${VPS_STACK_BACKUP_CONF_DIR:-${ETC_DIR}/backup}"
+BACKUP_REPO_ROOT="${VPS_STACK_BACKUP_ROOT:-/srv/backups}"
+# The single repository of vps-stack 0.2 and older. Only detected, so that
+# `backup` can point at the migration instead of ignoring it.
+LEGACY_RESTIC_ENV_FILE="${ETC_DIR}/restic.env"
 PROVISION_LOG_FILE="${VPS_STACK_PROVISION_LOG:-/var/log/vps-stack-provision.log}"
 BACKUP_LOG_FILE="${VPS_STACK_BACKUP_LOG:-/var/log/vps-stack-backup.log}"
 CADDY_CONTAINER="caddy"
