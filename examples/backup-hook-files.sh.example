@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # Example backup hook: additional directories (e.g. files uploaded by users).
 # It copies nothing: it only names paths that restic should include in the
-# backup.
+# backup of the project.
 #
-# Installation:
-#   sudo install -m 700 examples/backup-hook-files.sh.example /etc/vps-stack/hooks/example-app-files.sh
+# Installation, for the project "example-app":
+#   sudo install -m 700 examples/backup-hook-files.sh.example /etc/vps-stack/hooks/example-app/files.sh
+#
+# Keep such files in a bind mount below the project directory (for example
+# ./storage/uploads in docker-compose.yml), not in a named Docker volume:
+# the path then is plain and stable (docs/project-contract.md).
 set -euo pipefail
 
 : "${HOOK_EXTRA_PATHS_FILE:?the hook is started by: vps-stack backup run}"
+: "${PROJECT_DIR:?the hook is started by: vps-stack backup run}"
 
 # TODO(user): absolute paths of the project's directories, one per line.
 # A path that does not exist marks the whole backup as failed (on purpose:
 # a typo must not silently switch off the backup of your files).
-cat >>"${HOOK_EXTRA_PATHS_FILE}" <<'PATHS'
-/srv/example-app/storage/uploads
+cat >>"${HOOK_EXTRA_PATHS_FILE}" <<PATHS
+${PROJECT_DIR}/storage/uploads
 PATHS
