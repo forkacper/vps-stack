@@ -242,3 +242,95 @@ tbody tr:last-child td {
 footer {
     margin-top: 24px;
 }
+
+.history {
+    margin-bottom: 28px;
+}
+
+.range {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.range button {
+    padding: 4px 12px;
+    border: 0;
+    background: var(--panel);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.range button + button {
+    border-left: 1px solid var(--line);
+}
+
+.range button[aria-pressed="true"] {
+    background: var(--track);
+    color: var(--text);
+    font-weight: 600;
+}
+
+.charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 12px;
+}
+
+.chart h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.chart-value {
+    /* Two lines reserved, so the plots line up across the cards. */
+    min-height: 2.9em;
+    margin: 4px 0 8px;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.chart-plot {
+    height: 120px;
+    border-bottom: 1px solid var(--line);
+}
+
+.chart-plot svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.chart-axis {
+    margin-top: 4px;
+}
+
+polyline {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.line-main {
+    stroke: var(--ok);
+}
+
+.line-faint {
+    stroke: var(--idle);
+    stroke-opacity: 0.6;
+}
+
+.spark {
+    min-width: 130px;
+}
+
+.sparkline {
+    display: block;
+    width: 120px;
+    height: 28px;
+}
