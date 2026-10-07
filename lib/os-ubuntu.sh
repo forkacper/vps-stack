@@ -14,6 +14,12 @@ DOCKER_REPO_URL="https://download.docker.com/linux/ubuntu"
 DOCKER_KEYRING="/etc/apt/keyrings/docker.asc"
 DOCKER_SOURCES_LIST="/etc/apt/sources.list.d/docker.list"
 
+# How long to wait for apt and dpkg locks held by another apt process, e.g.
+# apt-daily or unattended-upgrades, which run on a fresh server shortly after
+# boot. Overridable only so the waiting can be tested without minutes of it.
+APT_LOCK_TIMEOUT="${VPS_STACK_APT_LOCK_TIMEOUT:-600}"
+APT_LOCK_RETRY_DELAY="${VPS_STACK_APT_LOCK_RETRY_DELAY:-10}"
+
 # Both releases report `untested` until the repository owner records a real
 # test run in README.md. Switch a release to `ok` only together with that
 # entry.
@@ -24,12 +30,56 @@ os_check_supported() {
     esac
 }
 
+# _os_apt <apt-get arguments...>: apt-get that waits for locks held by
+# another apt process instead of failing at once.
+#
+# Two mechanisms, because apt treats its locks differently (checked in the
+# apt 2.7.14 sources, and observed with apt 2.8.3 on Ubuntu 24.04):
+# DPkg::Lock::Timeout makes apt wait for the dpkg locks
+# (/var/lib/dpkg/lock-frontend and lock), but `apt-get update` takes
+# /var/lib/apt/lists/lock without any timeout and fails at once with "Could
+# not get lock". That failure is retried here until APT_LOCK_TIMEOUT runs
+# out. apt runs with LC_ALL=C, so that the message is
+# recognised whatever the server's locale.
+_os_apt() {
+    local log code remaining started="${SECONDS}"
+    if is_dry_run; then
+        run env DEBIAN_FRONTEND=noninteractive apt-get -o "DPkg::Lock::Timeout=${APT_LOCK_TIMEOUT}" "$@"
+        return 0
+    fi
+    log="$(mktemp)" || return 1
+    while true; do
+        remaining=$((APT_LOCK_TIMEOUT - (SECONDS - started)))
+        [[ "${remaining}" -ge 1 ]] || remaining=1
+        code=0
+        # stdout goes where the caller sends it; stderr is shown and kept in
+        # the log, to look for the lock message.
+        { env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt-get -o "DPkg::Lock::Timeout=${remaining}" "$@" 2>&1 1>&3 |
+            tee "${log}" >&2; } 3>&1 || code=$?
+        if [[ "${code}" -eq 0 ]]; then
+            rm -f "${log}"
+            return 0
+        fi
+        if ! grep -q 'Could not get lock' "${log}"; then
+            rm -f "${log}"
+            return "${code}"
+        fi
+        if [[ $((SECONDS - started)) -ge "${APT_LOCK_TIMEOUT}" ]]; then
+            rm -f "${log}"
+            log_error "apt is still locked after ${APT_LOCK_TIMEOUT} s: another apt process is probably still running (automatic updates on a fresh server). Check: ps -o pid,etime,cmd -C apt-get,apt,unattended-upgr"
+            return "${code}"
+        fi
+        log_warn "apt is busy (another apt process, e.g. automatic updates); waiting ${APT_LOCK_RETRY_DELAY} s and trying again..."
+        sleep "${APT_LOCK_RETRY_DELAY}"
+    done
+}
+
 os_pkg_update() {
-    run env DEBIAN_FRONTEND=noninteractive apt-get update
+    _os_apt update
 }
 
 os_pkg_install() {
-    run env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+    _os_apt install -y "$@"
 }
 
 _os_pkg_installed() {
@@ -84,7 +134,7 @@ os_docker_conflicts() {
 }
 
 os_docker_remove_packages() {
-    run env DEBIAN_FRONTEND=noninteractive apt-get remove -y "$@"
+    _os_apt remove -y "$@"
 }
 
 # os_docker_install <official|fallback>
