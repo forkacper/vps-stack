@@ -195,6 +195,9 @@ With a test domain pointing at the server (`ACME_CA` set to staging):
       Docker gateway).
 - [ ] After a reboot the page works again without any command.
 - [ ] `sudo vps-stack verify` shows the three status page rows as OK.
+- [ ] After 15 minutes the history charts show 3 samples; after a reboot
+      they are still there, with a gap for the time the server was down.
+- [ ] `sudo vps-stack monitor refresh`: finishes, the password still works.
 - [ ] `sudo vps-stack monitor password`: the old password stops working.
 - [ ] `sudo vps-stack monitor disable`: the page, the service and the jail are
       gone, the other sites work.

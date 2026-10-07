@@ -120,6 +120,7 @@ removes:
 | `/etc/vps-stack/monitor.env`, `monitor-banned.list` | domain and login; addresses banned by fail2ban (600) |
 | `/etc/vps-stack/sites/_monitor.caddy`, `sites/.monitor-banned` | the site (600, holds the password hash) and the ban list it imports |
 | `/var/log/vps-stack-monitor/access.log` | access log of the status page, rotated by Caddy (kept after `disable`) |
+| `/var/lib/vps-stack-monitor/history.jsonl` | 7 days of history samples, one every 5 minutes (removed by `disable`) |
 
 Before an existing file is changed, a copy `<file>.bak.<date-time>` is made.
 

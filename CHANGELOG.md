@@ -9,6 +9,18 @@ incompatible way.
 
 ## [Unreleased]
 
+### Added
+
+- Status page history: every 5 minutes the collector records CPU (average
+  and highest), memory, swap, disk, load and the memory of every running
+  container, keeps 7 days in `/var/lib/vps-stack-monitor/` (survives
+  reboots), and the page shows them as charts for 24 hours or 7 days, plus a
+  24-hour memory trend per container.
+- `monitor refresh`: after an update, brings an enabled status page in line
+  with the new version (site file, collector service, fail2ban jail) and
+  keeps the password. **Run it once after updating** if the status page is
+  enabled: the site file of an existing page does not serve the history yet.
+
 ## [0.3.0] - 2026-10-07
 
 ### Changed
