@@ -38,5 +38,5 @@ seriously, but a reply may take a while.
 
 ## Supported versions
 
-Fixes go only into the latest version on the main branch. The `0.x` series is
+Fixes go only into the latest version on the master branch. The `0.x` series is
 alpha.
