@@ -82,7 +82,8 @@ Details: [docs/architecture.md](docs/architecture.md).
 | Debian 12 / 13 | planned; the script refuses to run ("not implemented") | | | |
 | Debian 11 and older, other distributions | not supported | | | |
 
-<!-- TODO(user): verify the end-of-support date of Debian 11 before stating it here. -->
+Debian 11 is out of support: its LTS period ended on 2026-08-31
+([wiki.debian.org/LTS](https://wiki.debian.org/LTS)).
 
 On any system other than Ubuntu 24.04 / 26.04 the scripts stop before making
 any change.
@@ -107,8 +108,7 @@ The full version with explanations: [docs/quickstart.md](docs/quickstart.md).
 ```bash
 # On a fresh server, as root or a user with sudo:
 sudo apt-get update && sudo apt-get install -y git
-# TODO(user): repository address
-sudo git clone https://github.com/TODO-user/vps-stack.git /opt/vps-stack
+sudo git clone https://github.com/forkacper/vps-stack.git /opt/vps-stack
 cd /opt/vps-stack
 
 # Read the scripts before you run them. Then:
@@ -229,8 +229,6 @@ Bugs and proposals: issues in the repository (templates are provided).
 Vulnerabilities: [SECURITY.md](SECURITY.md). Rules for changes:
 [CONTRIBUTING.md](CONTRIBUTING.md). This is a hobby project; replies may come
 late or not at all.
-
-<!-- TODO(user): before publishing, check that the repository name "vps-stack" is available. -->
 
 ## License
 

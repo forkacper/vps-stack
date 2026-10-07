@@ -1,4 +1,3 @@
-# TODO(user): repository address in the private reporting link below.
 name: Bug report
 description: Something behaves differently from what the documentation says
 labels: ["bug"]
@@ -9,7 +8,7 @@ body:
         Thank you for the report. This is a hobby project: a reply may take a while.
 
         **Report security vulnerabilities privately**, as described in SECURITY.md, not here:
-        https://github.com/TODO-user/vps-stack/security/advisories/new
+        https://github.com/forkacper/vps-stack/security/advisories/new
   - type: input
     id: os
     attributes:

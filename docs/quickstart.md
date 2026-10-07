@@ -27,8 +27,7 @@ needed.
 
 ```bash
 sudo apt-get update && sudo apt-get install -y git
-# TODO(user): repository address
-sudo git clone https://github.com/TODO-user/vps-stack.git /opt/vps-stack
+sudo git clone https://github.com/forkacper/vps-stack.git /opt/vps-stack
 cd /opt/vps-stack
 ```
 
