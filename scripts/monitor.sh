@@ -352,7 +352,7 @@ install_fail2ban() {
     fi
     # FAIL2BAN_IGNOREIP was validated by provision; checked again, because
     # it lands in a configuration file.
-    if [[ -n "${FAIL2BAN_IGNOREIP}" ]]; then
+    if [[ -n "${FAIL2BAN_IGNOREIP:-}" ]]; then
         [[ "${FAIL2BAN_IGNOREIP}" =~ ^[0-9a-fA-F.:/\ ]*$ ]] ||
             die "FAIL2BAN_IGNOREIP in ${STACK_ENV_FILE} contains characters that are not allowed."
         ignoreip=" ${FAIL2BAN_IGNOREIP}"
@@ -615,6 +615,8 @@ cmd_refresh() {
     require_etc_access write
     require_cmd docker systemctl
     require_enabled
+    # FAIL2BAN_IGNOREIP for the jail, as in enable.
+    stack_config_load "${STACK_ENV_FILE}"
 
     hash="$(awk 'found && NF == 2 { print $2; exit } /basic_auth \{/ { found = 1 }' "${MONITOR_SITE_FILE}")"
     validate_bcrypt_hash "${hash}" 2>/dev/null ||

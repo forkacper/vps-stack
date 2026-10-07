@@ -27,6 +27,8 @@ incompatible way.
   change: every refresh counted as a failed login, and fail2ban banned the
   administrator's own address. After a rejected login the page now stops
   and asks to be reloaded.
+- `monitor refresh` stopped with "FAIL2BAN_IGNOREIP: unbound variable" on a
+  server with fail2ban: it did not read `stack.env`. It does now.
 - `provision` no longer prints systemd's "Synchronizing state of ... with
   SysV service script" lines; `backup restore --path` shows where the
   restored path is; hooks that write nothing (like the files example) no
