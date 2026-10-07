@@ -1,0 +1,47 @@
+# Shared reverse proxy. Always start it through `vps-stack proxy`, which adds
+# --env-file /etc/vps-stack/proxy.env and the fixed project name.
+#
+# Image tag: the newest stable Caddy release at the time of writing, taken
+# from https://github.com/caddyserver/caddy/releases and confirmed to exist on
+# https://hub.docker.com/_/caddy/tags. To update: read the release notes,
+# change the tag below, then run `vps-stack proxy up`.
+
+services:
+  caddy:
+    image: caddy:2.11.7-alpine
+    container_name: caddy
+    restart: unless-stopped
+    # The only published ports on the whole server.
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${SITES_DIR:-/etc/vps-stack/sites}:/etc/caddy/sites:ro
+      - ${CADDY_DATA_DIR:-/srv/data/caddy}/data:/data
+      - ${CADDY_DATA_DIR:-/srv/data/caddy}/config:/config
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+      ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+    networks:
+      - proxy
+    mem_limit: 256m
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # Caddy's admin API listens on localhost inside the container only.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:-proxy}
+    external: true
