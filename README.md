@@ -1,6 +1,6 @@
 # vps-stack
 
-> **Status: 0.x, not yet confirmed on a real server. Use at your own risk.**
+> **Status: 0.x. Confirmed on Ubuntu 24.04 (see [Verified on](#verified-on)); Ubuntu 26.04 untested. Use at your own risk.**
 >
 > The scripts run as **root** and change the **SSH and firewall**
 > configuration. A mistake there can lock you out of the server. Do the first
@@ -80,8 +80,8 @@ Details: [docs/architecture.md](docs/architecture.md).
 
 | System | Status | Tested by | Date | Commit |
 |---|---|---|---|---|
-| Ubuntu 26.04 LTS | target system; code implemented, **untested** | | | |
-| Ubuntu 24.04 LTS | same code, **untested** (warning at start) | | | |
+| Ubuntu 26.04 LTS | target system; code implemented, **untested** (warning at start) | | | |
+| Ubuntu 24.04 LTS | **tested** on a real server | forkacper | 2026-10-07 | `7a9915a` (0.5.0) |
 | Debian 12 / 13 | planned; the script refuses to run ("not implemented") | | | |
 | Debian 11 and older, other distributions | not supported | | | |
 
@@ -94,15 +94,12 @@ any change.
 ### Verified on
 
 This section is filled in only by the repository owner, from the report of the
-procedure described in [docs/testing.md](docs/testing.md). As long as the
-table is empty, **nothing in this repository has been confirmed on a real
-server**.
-
-<!-- TODO(user): fill in after a test on a real machine (docs/testing.md). -->
+procedure described in [docs/testing.md](docs/testing.md). A system that is
+not listed here has not been confirmed on a real server.
 
 | Date | System | Provider | Commit | Result | Notes |
 |---|---|---|---|---|---|
-| | | | | | |
+| 2026-10-07 | Ubuntu 24.04.4 LTS | OVH VPS | `7a9915a` (0.5.0) | OK | Whole procedure of docs/testing.md, `ssh.socket` mode, staging CA. Bugs found and fixed: `admin` group from cloud-init (0.4.1), apt lock held by automatic updates (0.4.2), IPv6 clients seen as the Docker gateway, status page polling with an old password, `monitor refresh` without `stack.env` (0.5.0) |
 
 ## Quick start
 

@@ -86,8 +86,9 @@ sudo ./bin/vps-stack provision --config ~/stack.env
 ```
 
 The script goes through 13 steps and prints `[n/13]` at each of them. At the
-start it warns that the system is untested, shows a summary of the settings and
-asks whether to begin. After that it stops in three more places and waits for
+start it shows a summary of the settings (on a system not yet confirmed on a
+real server, Ubuntu 26.04 for now, it warns about that first) and asks whether
+to begin. After that it stops in three more places and waits for
 you:
 
 1. **Administrator password.** SSH login will be possible by key only, but

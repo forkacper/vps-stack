@@ -34,6 +34,12 @@ incompatible way.
   restored path is; hooks that write nothing (like the files example) no
   longer leave an empty directory in every snapshot.
 
+### Changed
+
+- Ubuntu 24.04 is confirmed on a real server (OVH, 2026-10-07; see "Verified
+  on" in the README): the scripts no longer warn that it is untested. Ubuntu
+  26.04 still does.
+
 ### Added
 
 - `proxy network-ipv6`: recreates an IPv4-only `proxy` network with IPv6,
