@@ -129,13 +129,25 @@ is not part of provisioning: `ssh-port` detects the variant, opens the new
 port in the firewall before the change and closes the old one only after a
 confirmation from a new session.
 
-## Backup: restic and a repository outside the provider
+## Backup: restic, one repository per project
 
-restic encrypts data on the server side, deduplicates it and supports many
-backends, so the choice of storage stays with the user. A repository at the
-same provider as the VPS does not protect against losing the account or a
-provider failure. The repository credentials and password are excluded from
-the backup, so that no illusion arises that "everything is in the backup".
+restic deduplicates and compresses, checks the integrity of its data and
+supports many backends, so moving the copies elsewhere later is a change of
+one setting. Its encryption matters little while a repository lives on the
+same server (whoever has root there reads the live data anyway), and it
+cannot be switched off; the password is therefore generated and stored for
+the user, who needs to keep it only once the copies leave the server.
+
+Every project has its own repository and password: a project's backup can be
+restored, handed over or moved without touching the others, and different
+projects can later be kept in physically separate places. The repositories
+live on the server by default, which protects against mistakes in the
+applications but not against losing the server; the documentation says so
+plainly instead of hiding it. Repository credentials and passwords are never
+part of any backup.
+
+Dumps are plain SQL: a compressed dump looks new every time and defeats the
+deduplication.
 
 ## Version pinning
 

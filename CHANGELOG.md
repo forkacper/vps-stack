@@ -9,6 +9,34 @@ incompatible way.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** backups are per project. Every project has its own restic
+  repository and generated password (`/etc/vps-stack/backup/<project>.env`,
+  `/srv/backups/<project>/`), its hooks live in
+  `/etc/vps-stack/hooks/<project>/`, and a `system` group holds the vps-stack
+  configuration and certificates. The repositories live on the server by
+  default. `/etc/vps-stack/restic.env` is no longer used: `backup` stops while
+  it exists. Migration: "Moving from vps-stack 0.2" in
+  [docs/backup-restore.md](https://github.com/forkacper/vps-stack/blob/master/docs/backup-restore.md#moving-from-vps-stack-02).
+- The database hook example writes plain SQL instead of gzip, so restic can
+  deduplicate consecutive dumps; it uses `mariadb-dump` or `mysqldump`,
+  whichever the container has, and never leaves an unfinished dump behind.
+- Hooks receive `PROJECT_DIR` and `BACKUP_GROUP`; only the newest dump of
+  every hook is kept, and it is pruned before the snapshot, so a snapshot
+  holds exactly one dump per hook.
+
+### Added
+
+- `backup list`, `backup snapshots`, `backup restore` (always into a new or
+  empty directory) and `backup export` (a tar or zip archive of a snapshot).
+- `verify` reports every backup group, where its repository lives, projects
+  without hooks, and the space taken by the local repositories.
+
+### Removed
+
+- `config/restic.env.example`; `backup init` writes the group configuration.
+
 ## [0.2.0] - 2026-10-07
 
 ### Added

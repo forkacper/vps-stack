@@ -16,7 +16,7 @@ only container reachable from the internet is the proxy.
 | unattended-upgrades | databases, caches |
 | Docker Engine with the Compose plugin | |
 | cron: backup and image cleanup | |
-| restic (backup client) | |
+| restic (backup client, one repository per project) | |
 
 `vps-stack` installs no application runtimes (PHP, Node, Python) on the host.
 They belong in the projects' images.
@@ -70,14 +70,15 @@ repository.
 /etc/vps-stack/            local configuration, root:root, 700
 ├── stack.env              provisioning parameters (600)
 ├── proxy.env              ACME_EMAIL, ACME_CA (600)
-├── restic.env             backup repository settings (600), not backed up
-├── restic.password        repository password (600), not backed up
+├── backup/                backup groups (700): <group>.env and <group>.password (600),
+│                          not part of any backup
 ├── sites/                 Caddy files, one per site: <domain>.caddy
 │   └── .removed/          files of removed sites
-└── hooks/                 backup hooks of the projects (700)
+└── hooks/<project>/       backup hooks of every project (700)
 /srv/data/caddy/data       certificates and the ACME account key
 /srv/data/caddy/config     Caddy state
-/srv/backup-staging/       local dumps before they are sent to restic (700)
+/srv/backup-staging/<project>/  the newest dump of every hook, before the snapshot (700)
+/srv/backups/<group>/      restic repository of every group (700), by default
 /srv/<project>/            project directories (clones of their repositories)
 ```
 

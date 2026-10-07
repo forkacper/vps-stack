@@ -11,7 +11,8 @@
 
 `vps-stack` is a minimal set of bash scripts and configuration files that
 turns a clean Ubuntu VPS into a hardened server for hosting several Docker
-Compose projects behind a shared reverse proxy (Caddy), with off-site backup
+Compose projects behind a shared reverse proxy (Caddy), with a backup per
+project
 and a command for adding domains.
 
 **What it is not:** it is not a PaaS; there is no panel, no agent, no
@@ -28,7 +29,9 @@ proxy container.
 - Installs Docker and starts the shared Caddy proxy with automatic HTTPS.
 - Adds and removes sites with one command, with input validation, a DNS check
   and a rollback when Caddy rejects the configuration.
-- Runs encrypted backups (restic) to a repository outside the server.
+- Backs up every project into its own restic repository: database dumps,
+  user files and `.env`, every 6 hours; restore and export per project. The
+  repositories live on the server by default and can be moved elsewhere.
 - Checks the state of the server (`verify`) and looks for ports exposed to the
   internet (`check-ports`).
 - Optionally, a read-only status page at its own domain behind a login:
@@ -141,7 +144,7 @@ it.
 | `vps-stack list-sites` | lists domains, upstreams, aliases and redirects |
 | `vps-stack check-dns <domain>...` | checks that a domain points at this server |
 | `vps-stack proxy up\|down\|restart\|reload\|validate\|status\|logs` | manages the proxy container |
-| `vps-stack backup init\|run\|setup` | restic backup: initialise, run, install the cron job |
+| `vps-stack backup init\|run\|list\|snapshots\|restore\|export\|setup` | backup per project: set up, run, inspect, restore into a new directory, export an archive, schedule |
 | `vps-stack monitor enable <domain>\|disable\|password\|status` | optional status page: resources and containers, behind a login |
 | `vps-stack version`, `vps-stack help` | version and help |
 

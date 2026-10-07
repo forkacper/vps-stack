@@ -160,7 +160,8 @@ swap, firewall, Docker and the proxy have to come up on their own.
 ## 7. What next
 
 - **Backup.** Without it the server is not ready for work:
-  [backup-restore.md](backup-restore.md).
+  `sudo vps-stack backup init system`, then `backup init <project>` for every
+  project ([backup-restore.md](backup-restore.md)).
 - **Monitoring.** The minimum is an external uptime check:
   [monitoring.md](monitoring.md).
 - **Changing the SSH port** (optional): `sudo vps-stack ssh-port <port>`.

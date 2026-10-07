@@ -24,8 +24,9 @@ A backup that silently stopped working comes to light at the worst moment. Use
 a "dead man's switch" service (e.g. healthchecks.io): the alarm goes off when
 a ping does **not** arrive.
 
-Set `HC_URL` in `/etc/vps-stack/restic.env`. The backup script calls
-`<HC_URL>/start`, and at the end `<HC_URL>` (success) or `<HC_URL>/fail`.
+Set `HC_URL` in `/etc/vps-stack/backup/<group>.env`, one monitor per
+group. The backup script calls `<HC_URL>/start`, and at the end `<HC_URL>`
+(success) or `<HC_URL>/fail`.
 
 Check settings: a period of 6 hours, a grace time of a few hours.
 

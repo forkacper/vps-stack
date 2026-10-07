@@ -1,214 +1,290 @@
 # Backup and restore
 
-**Keep the backup repository password in a password manager, together with the
-repository address and the storage credentials. Without that password the
-backup is useless: nobody, including you, can decrypt it.** These details are
-deliberately not part of the backup itself, so if they exist only on the
-server, they disappear with it.
+## How it works
 
-## Assumptions
+`vps-stack` backs up with [restic](https://restic.net/). Every project has its
+**own backup repository**, with its own password; a group called `system`
+holds the `vps-stack` configuration and the certificates. "Repository" here
+means restic's storage for the copies (a directory of encrypted,
+deduplicated data), not a git repository.
 
-- Tool: [restic](https://restic.net/). Data is encrypted before it is sent.
-- The repository lives **outside the VPS provider** (S3-compatible storage, an
-  SFTP server or any other backend restic supports). A backup on the same
-  server or in the same account is not a backup.
-- cron runs the backup every 6 hours.
-- A failure of any part ends the whole run with an error code and a `fail`
-  ping. A partial backup is better than none, but it has to raise an alarm.
+```
+cron every 6 h → vps-stack backup run
+  system         /etc/vps-stack (without the backup configuration), certificates
+  <project>      hooks: database dump + paths of user files, and /srv/<project>/.env
+                 → /srv/backups/<project>   (restic repository of the project)
+```
 
-## What is backed up
+- Every run creates one **snapshot** per group: the state at that moment.
+  restic stores only what changed since the previous one, so frequent
+  snapshots of a database of a few GB take little extra space.
+- Retention after every run: 14 daily, 8 weekly and 6 monthly snapshots;
+  once a week `restic prune` and `restic check`.
+- A failure in one group (a broken hook, for example) does not stop the
+  others, but the whole run ends with an error, and `verify` shows it.
+- The projects' code is not backed up: it is in their git repositories.
+
+### What a copy on this server protects against
+
+By default the repositories live on the server itself, in `/srv/backups/`.
+
+| Protects against | Does not protect against |
+|---|---|
+| a bad migration, deleted or overwritten data in an application | losing the server or its disk |
+| a broken deployment: you go back to the dump from a few hours ago | losing access to the provider account |
+| a mistaken `docker compose down -v` | an attacker with root, who can delete the copies too |
+
+For the right column the copies have to live elsewhere as well: see
+[Copies outside the server](#copies-outside-the-server).
+
+## Setting up
+
+```bash
+# Once: the system group.
+sudo vps-stack backup init system
+
+# For every project (the name of its directory in /srv):
+sudo vps-stack backup init example-app
+```
+
+`init` creates, without overwriting anything that exists:
 
 | Path | Content |
 |---|---|
-| `/srv/backup-staging` | database dumps made by the hooks |
-| `/srv/data/caddy/data` | certificates and the ACME account key |
-| `/etc/vps-stack` | configuration, site files, hooks |
-| `/srv/*/.env` | the projects' `.env` files |
-| paths named by the hooks | e.g. directories with user files |
+| `/etc/vps-stack/backup/example-app.env` | repository, retention, optional monitoring ping (600) |
+| `/etc/vps-stack/backup/example-app.password` | repository password, generated (600) |
+| `/etc/vps-stack/hooks/example-app/` | hooks of the project (700) |
+| `/srv/backups/example-app/` | the restic repository (700) |
 
-**Excluded:** `/etc/vps-stack/restic.env` and `/etc/vps-stack/restic.password`.
-The credentials and the password of the repository must not live only in the
-repository they unlock. They have to be in your password manager.
+**The password** is generated and stored on the server; you never type it,
+and `vps-stack backup` reads it for you. As long as the repository is on the
+same server, a second copy of the password would not help: if the server is
+lost, the copies are lost with it. Once the repository moves elsewhere, save
+the password in your password manager as well.
 
-The projects' code is not backed up: it is in their git repositories. Docker
-volumes are not either; database data goes into the backup as dumps made by
-the hooks, and files as paths named by the hooks.
-
-## Setup
+Then the hooks (below), the first backup by hand and the schedule:
 
 ```bash
-# 1. Repository settings
-sudo install -m 600 /opt/vps-stack/config/restic.env.example /etc/vps-stack/restic.env
-sudoedit /etc/vps-stack/restic.env
-
-# 2. Repository password: long, random, saved in a password manager
-sudo sh -c 'umask 077; openssl rand -base64 32 > /etc/vps-stack/restic.password'
-sudo cat /etc/vps-stack/restic.password      # copy it to the password manager NOW
-
-# 3. Initialise the repository (safe to repeat)
-sudo vps-stack backup init
-
-# 4. Project hooks (see below), then the first backup by hand
-sudo vps-stack backup run
-
-# 5. Schedule
-sudo vps-stack backup setup
+sudo vps-stack backup run example-app
+sudo vps-stack backup setup              # cron, every 6 hours, all groups
+sudo vps-stack backup list               # groups, last success, snapshots, size
 ```
 
-Preview without running anything: `sudo vps-stack backup run --dry-run`.
-
-Log: `/var/log/vps-stack-backup.log`. `sudo vps-stack verify` shows the age of
-the last successful backup.
+Preview without changing anything: `sudo vps-stack backup run --dry-run`.
+Log: `/var/log/vps-stack-backup.log`.
 
 ## Project hooks
 
-Before sending data, the script runs every **executable** file matching
-`/etc/vps-stack/hooks/*.sh`. Each gets three variables:
+Before a project's snapshot, `backup run` executes every **executable** file
+`/etc/vps-stack/hooks/<project>/*.sh`. Each gets:
 
 | Variable | Meaning |
 |---|---|
-| `STAGING_DIR` | directory for local dumps (`/srv/backup-staging`) |
+| `BACKUP_GROUP` | the project, e.g. `example-app` |
+| `PROJECT_DIR` | its directory, e.g. `/srv/example-app` |
+| `STAGING_DIR` | the project's staging directory for dumps (`/srv/backup-staging/example-app`) |
 | `HOOK_NAME` | name of the hook file without `.sh` |
 | `HOOK_EXTRA_PATHS_FILE` | file for additional paths to back up |
 
 Rules:
 
 - Write dumps to `$STAGING_DIR/$HOOK_NAME/`, with the date in the file name.
+  Before the snapshot only the newest file of every hook is kept, so a
+  snapshot holds exactly one dump per hook.
+- Write **plain SQL**, not gzip: restic compresses the dump itself and stores
+  only the changes. A compressed dump looks entirely new every time and would
+  take its full size in the repository on every run.
 - Append additional paths (absolute, existing) to `$HOOK_EXTRA_PATHS_FILE`,
-  one per line.
-- The hook **fails** when the dump is empty or corrupt (`gzip -t`). Use
-  `set -euo pipefail`: without `pipefail` a `mysqldump` error in the pipe to
-  `gzip` would be masked.
-- A failing hook stops neither the other hooks nor the backup itself, but the
-  whole run is marked as failed.
-- After the backup, the 2 newest files are kept in every
-  `$STAGING_DIR/<hook>/` directory.
+  one per line. A path that does not exist marks the run as failed, so that a
+  typo cannot silently switch off a backup.
+- The hook fails when the dump is empty or incomplete.
 
-Examples: `examples/backup-hook-mysql.sh.example` and
-`examples/backup-hook-files.sh.example`.
+Examples:
 
 ```bash
 sudo install -m 700 /opt/vps-stack/examples/backup-hook-mysql.sh.example \
-    /etc/vps-stack/hooks/example-app-db.sh
-sudoedit /etc/vps-stack/hooks/example-app-db.sh     # fill in the TODO(user) items
+    /etc/vps-stack/hooks/example-app/db.sh
+sudo install -m 700 /opt/vps-stack/examples/backup-hook-files.sh.example \
+    /etc/vps-stack/hooks/example-app/files.sh
+sudoedit /etc/vps-stack/hooks/example-app/db.sh     # fill in the TODO(user) items
 ```
 
-Make the dump with a dedicated database user that has minimal privileges.
+The database hook works with MySQL and MariaDB: it uses `mariadb-dump` when
+the container has it (MariaDB 11 images have only that) and `mysqldump`
+otherwise, and checks the `-- Dump completed` line both write at the end of a
+complete dump. Make the dump with a dedicated database user that has minimal
+privileges, never root.
 
-## Retention
+User files belong in a bind mount below the project directory (e.g.
+`./storage/uploads`), not in a named Docker volume: the path is then plain
+and stable ([project-contract.md](project-contract.md)).
 
-After every backup: `restic forget --keep-daily 14 --keep-weekly 8
---keep-monthly 6`. Once a week (the first run on Sunday, UTC): `restic prune`
-and `restic check --read-data-subset=5%`.
+## Restoring
+
+`vps-stack backup restore` always unpacks into a **new or empty directory**
+and never writes over live data. Putting data back into the application is a
+separate, deliberate step.
+
+### Choosing the moment
+
+```bash
+sudo vps-stack backup snapshots example-app
+```
+
+Every row is a snapshot with its ID and time. `latest` is the newest.
+
+### A database
+
+```bash
+# 1. A fresh snapshot of the current state first: if the restore goes wrong,
+#    there is something to go back to.
+sudo vps-stack backup run example-app
+
+# 2. Unpack the chosen snapshot into a temporary directory.
+sudo vps-stack backup restore example-app --snapshot <ID> --target /tmp/restore-example-app
+sudo ls /tmp/restore-example-app/srv/backup-staging/example-app/db/
+
+# 3. Stop what writes to the database.
+cd /srv/example-app && sudo docker compose stop app worker
+
+# 4. Import (overwrites the tables contained in the dump).
+#    MariaDB: mariadb, MySQL: mysql. The root password variable is the one
+#    the database container was started with.
+sudo docker compose exec -T db sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" example_app' \
+    < /tmp/restore-example-app/srv/backup-staging/example-app/db/example_app-<time>.sql
+
+# 5. Start the application again and clean up.
+sudo docker compose start app worker
+sudo rm -rf /tmp/restore-example-app
+```
+
+**The careful variant:** import into a temporary database (for example
+`CREATE DATABASE example_app_restore`) instead, compare it with production
+and only then decide. The same way recovers a single table or a few deleted
+rows without turning back the whole database.
+
+### Files
+
+A single file:
+
+```bash
+sudo vps-stack backup restore example-app --snapshot <ID> \
+    --path /srv/example-app/storage/uploads/products/123.jpg --target /tmp/r
+sudo cp -p /tmp/r/srv/example-app/storage/uploads/products/123.jpg \
+    /srv/example-app/storage/uploads/products/
+```
+
+A whole directory:
+
+```bash
+sudo vps-stack backup restore example-app --snapshot <ID> \
+    --path /srv/example-app/storage/uploads --target /tmp/r
+sudo rsync -a /tmp/r/srv/example-app/storage/uploads/ /srv/example-app/storage/uploads/
+```
+
+`rsync -a` brings back missing and changed files and keeps files added since
+the snapshot; with `--delete` the directory returns exactly to the snapshot.
+
+Not sure which snapshot has a file? With the group's settings loaded,
+`restic find <name>` lists every snapshot that contains it:
+
+```bash
+sudo -i
+set -a; . /etc/vps-stack/backup/example-app.env; set +a
+restic find 123.jpg
+```
+
+## Moving a project to another server
+
+```bash
+# On the old server: an archive of the newest snapshot (tar or zip).
+sudo vps-stack backup export example-app --output /root/example-app.tar
+scp root@old-server:/root/example-app.tar .
+```
+
+The archive holds the dump, the user files and `.env`, under their full
+paths. It is **not encrypted**: move it over SSH and delete it afterwards. On
+the new server: provision, clone the project, put `.env` and the files in
+place, `docker compose up -d`, import the dump as in "A database" above, then
+`sudo vps-stack backup init example-app` and the hooks.
+
+To move every project at once, copy `/srv/backups/` together with
+`/etc/vps-stack/backup/` (the passwords) to the new server and restore from
+there.
+
+## Copies outside the server
+
+To protect against losing the server, a group's repository can live on
+S3-compatible storage or on an SFTP server instead. In
+`/etc/vps-stack/backup/<group>.env`:
+
+```bash
+RESTIC_REPOSITORY=s3:https://s3.example.com/example-bucket/example-app
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+then `sudo vps-stack backup init <group>` creates the new repository. The old
+local snapshots can be carried over with `restic copy` (see the restic
+documentation). From that moment:
+
+- save the repository password in your password manager: without it the
+  copies are useless;
+- prefer storage where the server can add data but not delete it (S3 Object
+  Lock or versioning, or `rest-server --append-only`); otherwise an attacker
+  with root on the server can delete the copies as well.
+
+Every project can be moved separately, so different clients' data can end up
+in different, physically separate places.
 
 ## Monitoring the backup
 
-Set `HC_URL` in `restic.env` to the ping URL of a healthchecks.io style
-monitor. The script calls `<HC_URL>/start` at the beginning and `<HC_URL>` or
-`<HC_URL>/fail` at the end. Configure the monitor to alert when no ping has
-arrived for 13 hours. More: [monitoring.md](monitoring.md).
+`sudo vps-stack verify` shows every group: the age of its last successful
+backup (warning after 13 hours, error after 48) and where its repository
+lives. For an alert when a backup stops, set `HC_URL` in the group's `.env` to
+the ping URL of a healthchecks.io style monitor: the script calls
+`<HC_URL>/start` and at the end `<HC_URL>` or `<HC_URL>/fail`. More:
+[monitoring.md](monitoring.md).
 
----
+## Monthly restore test
 
-## (a) Restoring a server from scratch
+A backup that has never been restored is only a hope. Once a month, for every
+project with a database:
 
-Scenario: the server is gone. You have the password manager and access to DNS.
-
-1. **New VPS.** Order a machine, go through steps 1-4 of
-   [quickstart.md](quickstart.md) (provisioning with a new `stack.env`).
-2. **Access to the repository.** Recreate from the password manager:
-
-   ```bash
-   sudoedit /etc/vps-stack/restic.env            # the same settings as before
-   sudo sh -c 'umask 077; cat > /etc/vps-stack/restic.password'   # paste the password, Ctrl+D
-   sudo chmod 600 /etc/vps-stack/restic.env /etc/vps-stack/restic.password
-   ```
-
-3. **Restore to a temporary directory.** Do not restore straight onto `/`:
+1. `sudo vps-stack backup restore <project> --target /tmp/restore-test`
+2. Import the dump into a temporary database container, the same image and
+   version as the project uses:
 
    ```bash
-   sudo -i
-   set -a; . /etc/vps-stack/restic.env; set +a
-   restic snapshots
-   restic restore latest --target /tmp/restore
+   docker run -d --name restore-test -e MARIADB_ROOT_PASSWORD=restore-test-only mariadb:11.4
+   # wait until it is up, then:
+   docker exec restore-test mariadb -prestore-test-only -e 'CREATE DATABASE restore_test'
+   docker exec -i restore-test mariadb -prestore-test-only restore_test \
+       < /tmp/restore-test/srv/backup-staging/<project>/db/<newest>.sql
    ```
 
-4. **vps-stack configuration.** Copy the site files and the hooks:
+   For MySQL use the `mysql:<version>` image, `MYSQL_ROOT_PASSWORD` and the
+   `mysql` client.
+3. Compare the number of tables and of rows in the most important tables with
+   production. Zero, or an order of magnitude fewer, means a broken backup.
+4. Open a few restored user files.
+5. `docker rm -f restore-test && sudo rm -rf /tmp/restore-test`, and note the
+   date of the test.
 
-   ```bash
-   cp -a /tmp/restore/etc/vps-stack/sites/. /etc/vps-stack/sites/
-   cp -a /tmp/restore/etc/vps-stack/hooks/. /etc/vps-stack/hooks/
-   ```
+The `restore-test-only` password applies only to a one-off container with no
+published ports that you delete after the test.
 
-   Compare `stack.env` and `proxy.env` with the old ones and carry over the
-   values you need.
-5. **Certificates (optional).** Restoring `/srv/data/caddy/data` avoids having
-   the certificates issued again:
+## Moving from vps-stack 0.2
 
-   ```bash
-   vps-stack proxy down
-   cp -a /tmp/restore/srv/data/caddy/data/. /srv/data/caddy/data/
-   ```
+Version 0.2 had one repository for everything, configured in
+`/etc/vps-stack/restic.env`, with hooks directly in `/etc/vps-stack/hooks/`.
+`vps-stack backup` stops while that file exists. To move over:
 
-   If you skip this step, Caddy obtains new certificates once DNS has been
-   switched.
-6. **Projects.** For each one: clone the repository into `/srv/<project>`,
-   copy `.env` from `/tmp/restore/srv/<project>/.env`, run
-   `docker compose up -d`, import the newest database dump from
-   `/tmp/restore/srv/backup-staging/<hook>/` and copy the user files.
-7. **DNS.** Switch the domains' records to the new server's address. Only when
-   `vps-stack check-dns <domain>` shows `OK`, run `sudo vps-stack proxy up`.
-8. **Cleanup.** `rm -rf /tmp/restore`, then `sudo vps-stack verify`,
-   `sudo vps-stack backup run` and `sudo vps-stack backup setup`.
-
-## (b) Monthly restore test
-
-A backup that has never been restored is only a hope. Once a month:
-
-1. **Restore to a temporary directory:**
-
-   ```bash
-   sudo -i
-   set -a; . /etc/vps-stack/restic.env; set +a
-   restic snapshots | tail -n 5
-   restic restore latest --target /tmp/restore-test
-   ```
-
-2. **Import the dump into a temporary database container** (not into the
-   production one):
-
-   ```bash
-   # TODO(user): the same image and version as in the project
-   docker run -d --name restore-test -e MYSQL_ROOT_PASSWORD=restore-test-only example/database:TODO
-   # wait until the database is up, then:
-   docker exec restore-test mysql -prestore-test-only -e 'CREATE DATABASE restore_test'
-   gunzip -c /tmp/restore-test/srv/backup-staging/example-app-db/<newest>.sql.gz |
-       docker exec -i restore-test mysql -prestore-test-only restore_test
-   ```
-
-3. **Check the number of tables and rows** and compare with production:
-
-   ```bash
-   docker exec restore-test mysql -prestore-test-only -e \
-       'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="restore_test"'
-   # TODO(user): a few of the project's most important tables
-   docker exec restore-test mysql -prestore-test-only -e 'SELECT COUNT(*) FROM restore_test.TODO'
-   ```
-
-   The numbers should be close to production (the difference is the traffic
-   since the last backup). Zero, or an order of magnitude fewer, means a
-   broken backup.
-4. **Check the files:** open a few random user files from
-   `/tmp/restore-test/...` and compare the number of files with production.
-5. **Clean up:**
-
-   ```bash
-   docker rm -f restore-test
-   rm -rf /tmp/restore-test
-   ```
-
-6. Write down the date of the test. While you are at it, check that the
-   password in the password manager is the one the server uses.
-
-The `restore-test-only` password in this example applies only to a one-off
-container with no published ports that you delete after the test.
+1. `sudo vps-stack backup init system` and `backup init <project>` for every
+   project.
+2. Move every hook into its project's directory
+   (`/etc/vps-stack/hooks/<project>/`) and update it from the examples: plain
+   SQL instead of gzip, and `PROJECT_DIR`.
+3. `sudo vps-stack backup run` and `backup list`: every group has a snapshot.
+4. Move `/etc/vps-stack/restic.env` and `restic.password` away. The old
+   repository stays readable with them for as long as you keep it.

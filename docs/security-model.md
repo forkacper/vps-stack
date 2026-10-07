@@ -51,7 +51,9 @@ and `verify` detect it, but only after the fact and only when you run them.
 
 **A single server is a single point of failure.** A disk failure, a provider
 error or an administrator's mistake take everything down at once. The only
-answer is an off-site backup and a rehearsed restore.
+answer is an off-site backup and a rehearsed restore. The default backup
+repositories live on the server itself and do not cover this case
+([backup-restore.md](backup-restore.md)).
 
 **A compromised VPS provider account bypasses everything.** Whoever has
 access to the panel has the console, the snapshots and the disks. That is why
@@ -96,8 +98,9 @@ the status page only, and never bans private or Docker addresses.
 
 - 2FA and a strong password on the VPS provider account and at the domain
   registrar.
-- Safe storage of the SSH key (with a passphrase) and of the backup repository
-  password (in a password manager).
+- Safe storage of the SSH key (with a passphrase), and of the backup
+  repository passwords once the repositories live outside the server (in a
+  password manager).
 - Updating the projects' images and the Caddy image.
 - Rebooting the server after kernel updates (or `AUTO_REBOOT=true`).
 - The security of the applications themselves: dependencies, authentication,
