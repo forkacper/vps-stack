@@ -9,6 +9,13 @@ incompatible way.
 
 ## [Unreleased]
 
+### Added
+
+- `tests/e2e/run.sh`: an end-to-end test of a fresh, disposable server, run
+  from your computer: provisioning, SSH hardening and port change, reboots,
+  backup and restore, sites and the status page, with a PASS/FAIL report
+  ([docs/testing.md](https://github.com/forkacper/vps-stack/blob/master/docs/testing.md#automated-end-to-end-test)).
+
 ## [0.5.0] - 2026-10-08
 
 **Run once on existing servers: `sudo vps-stack proxy network-ipv6`**

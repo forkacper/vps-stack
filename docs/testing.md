@@ -35,11 +35,68 @@ works on a server".
 ## Local tests
 
 ```bash
-shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh .github/scripts/*.sh tests/helpers.bash examples/*.sh.example
+shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh .github/scripts/*.sh tests/helpers.bash tests/e2e/*.sh examples/*.sh.example
 bats tests/
 ```
 
 The tests of the status page need `jq`.
+
+## Automated end-to-end test
+
+`tests/e2e/run.sh` goes through most of the manual procedure below on a
+fresh, disposable server by itself, in about 20-30 minutes. It runs on **your
+computer**, not on the server: only from outside can it check that the new
+administrator logs in with the key, that the old account and password logins
+are refused, and that the new SSH port answers. It drives the real commands
+over SSH and answers their questions with `expect`; vps-stack has no test
+shortcuts.
+
+**It changes SSH and the firewall of the server. Use only a fresh server you
+can throw away.** It asks you to type the server address before it starts.
+
+Requirements:
+
+- on your computer: `ssh`, `scp`, `expect`, `curl`, `git`, `jq`, `openssl`
+  (all present on macOS);
+- a fresh Ubuntu server whose default account (`ubuntu` on cloud images)
+  logs in with your key and has passwordless sudo
+  ([ssh-keys.md](ssh-keys.md), steps 1-5);
+- for the sites and the status page: two hostnames with A (and AAAA, when
+  the server has IPv6) records pointing at the server, and an e-mail address
+  for the Let's Encrypt **staging** account (no real certificates). Without
+  them those steps are skipped.
+
+```bash
+tests/e2e/run.sh <server-address> --key ~/.ssh/example-vps \
+    --site test.example.com --status status.example.com --email admin@example.com
+```
+
+`--ref` picks the vps-stack version (default: the newest release),
+`--ssh-port` the port for the SSH port change (default 2222). The script
+creates the administrator `sysadmin` with a random password, and tests the
+second session, as that account, before it confirms the SSH hardening.
+
+What it checks: provisioning (dry run first), the closed doors (default
+account, password and root logins), `verify`, two reboots, a second
+provisioning without changes, the SSH port change (with a new session test,
+after a reboot, and the rollback when it is not confirmed), backup (init,
+run, deduplication, restore and import with every row, a single file,
+export, a broken hook, the schedule), `add-site` / `remove-site` with a
+staging certificate, the status page (login, `status.json` without
+environment variables, the IPv4 and IPv6 client address, a fail2ban ban
+that the server provokes against itself through its public address and that
+leaves the other site reachable, `monitor password`, `monitor refresh`,
+history).
+
+The report (`e2e-reports/report-<time>.md`, ignored by git: it holds the
+server's addresses) lists every check as PASS, FAIL or SKIP, the system and
+versions, and when everything passed, a row for the "Verified on" table. The
+full output is in the `log-<time>.txt` next to it. A failure of a critical
+step (connection, provisioning, SSH port change) stops the run, so that the
+server is never left half-configured without notice.
+
+Not covered: the provider's firewall in its panel, IPv6 from outside when your
+computer has no IPv6, and the restore of a whole server from scratch.
 
 ## Manual test procedure
 

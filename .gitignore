@@ -6,6 +6,8 @@ restic*
 *.pem
 *.bak.*
 /local/
+# Reports of tests/e2e/run.sh: they hold the test server's addresses.
+/e2e-reports/
 
 # Only the documented examples are tracked. Listed last on purpose: a later
 # pattern wins over `*.env` and `restic*` above.
