@@ -74,7 +74,7 @@ os_require_supported() {
             log_ok "System: ${OS_PRETTY_NAME}"
             ;;
         untested)
-            log_warn "System: ${OS_PRETTY_NAME}. vps-stack is alpha software and this system is UNTESTED."
+            log_warn "System: ${OS_PRETTY_NAME}. vps-stack has not been confirmed on this system yet (UNTESTED)."
             log_warn "Do the first run on a machine you can throw away. Have a snapshot and access to your provider's rescue console."
             if [[ "${ASSUME_YES}" != "1" ]]; then
                 confirm "Continue at your own risk?" || die "Aborted at the user's request."

@@ -1,6 +1,6 @@
 # vps-stack
 
-> **Status: alpha (0.x). Use at your own risk.**
+> **Status: 0.x, not yet confirmed on a real server. Use at your own risk.**
 >
 > The scripts run as **root** and change the **SSH and firewall**
 > configuration. A mistake there can lock you out of the server. Do the first

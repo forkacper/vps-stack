@@ -30,10 +30,13 @@ incompatible way.
 - CI installs `jq` in the bats container and checks the status page (Caddy
   configuration, fail2ban filter, systemd unit, Compose overlay).
 
-## [0.1.0-alpha.1]
+## [0.1.0] - 2026-10-07
 
 First version. The code has not been confirmed on a real server yet (see the
 "Verified on" section of the README).
+
+Its `VERSION` file still reads `0.1.0-alpha.1`: the pre-release label was
+dropped after it was written. The tag `v0.1.0` points at that commit.
 
 ### Added
 
