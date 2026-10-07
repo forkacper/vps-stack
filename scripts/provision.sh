@@ -601,7 +601,7 @@ step_fail2ban() {
         "IGNOREIP=${FAIL2BAN_IGNOREIP:+ ${FAIL2BAN_IGNOREIP}}" \
         "SSH_PORT=${SSH_PORT}")"
     write_file /etc/fail2ban/jail.local 644 <<<"${content}"
-    run systemctl enable fail2ban >/dev/null || true
+    run systemctl enable --quiet fail2ban || true
     if [[ "${WRITE_FILE_CHANGED}" == "1" ]] || ! systemctl is-active --quiet fail2ban 2>/dev/null; then
         run systemctl restart fail2ban || true
     fi
@@ -691,7 +691,7 @@ step_docker() {
     else
         log_dry "merge ${daemon_file} with templates/docker-daemon.json (jq is not installed yet)"
     fi
-    run systemctl enable --now docker >/dev/null || die "Could not start the docker service."
+    run systemctl enable --quiet --now docker || die "Could not start the docker service."
 
     ensure_group_member "${ADMIN_USER}" docker
     if [[ "${DEPLOY_IN_DOCKER_GROUP}" == "true" ]]; then
