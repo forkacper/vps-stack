@@ -31,7 +31,7 @@ Sites:
   check-dns      check that a domain points at this server
 
 Services:
-  proxy          up | down | restart | reload | validate | status | logs
+  proxy          up | down | restart | reload | validate | status | logs | network-ipv6
   backup         init | run | list | snapshots | restore | export | setup
   monitor        optional status page: enable | disable | password | status
 

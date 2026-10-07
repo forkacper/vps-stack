@@ -24,6 +24,10 @@ Commands:
   validate   only validate the configuration
   status     container state
   logs       container logs (extra arguments go to 'docker compose logs')
+  network-ipv6 [--dry-run] [--yes]
+             recreate an IPv4-only proxy network with IPv6, so that Caddy
+             sees the real address of IPv6 clients (a short outage of all
+             sites; attached containers are reconnected)
 USAGE
 }
 
@@ -47,11 +51,22 @@ prepare() {
     export SITES_DIR CADDY_DATA_DIR PROXY_NETWORK MONITOR_RUN_DIR MONITOR_LOG_DIR
 }
 
+# The proxy network has IPv6 enabled (Docker picks a private ULA /64). On an
+# IPv4-only network Docker publishes Caddy's ports on the host's IPv6
+# addresses through its userland proxy, and every IPv6 client reaches Caddy
+# as the network gateway: fail2ban cannot ban it and the applications see the
+# gateway in X-Forwarded-For. With IPv6 on the network, ip6tables forwards
+# the traffic and keeps the client address. This relies on ip6tables being
+# enabled in the Docker daemon, the default since Docker Engine 27.0.1.
 ensure_network() {
     if ! docker network inspect "${PROXY_NETWORK}" >/dev/null 2>&1; then
-        run docker network create "${PROXY_NETWORK}" >/dev/null
-        log_info "Created Docker network: ${PROXY_NETWORK}"
+        run docker network create --ipv6 "${PROXY_NETWORK}" >/dev/null
+        log_info "Created Docker network: ${PROXY_NETWORK} (IPv4 and IPv6)"
     fi
+}
+
+network_has_ipv6() {
+    [[ "$(docker network inspect -f '{{.EnableIPv6}}' "${PROXY_NETWORK}" 2>/dev/null)" == "true" ]]
 }
 
 # validate_config <live|fresh>
@@ -122,6 +137,120 @@ cmd_validate() {
     log_ok "The Caddy configuration is valid."
 }
 
+# network_aliases <container>: the aliases of the container on the proxy
+# network, one per line, without the container's own short ID (Docker adds
+# that one by itself).
+network_aliases() {
+    local container="$1" id alias
+    id="$(docker inspect -f '{{.Id}}' "${container}" 2>/dev/null)" || return 0
+    while IFS= read -r alias; do
+        [[ -n "${alias}" && "${id}" != "${alias}"* ]] && printf '%s\n' "${alias}"
+    done < <(docker inspect -f "{{with index .NetworkSettings.Networks \"${PROXY_NETWORK}\"}}{{range .Aliases}}{{println .}}{{end}}{{end}}" \
+        "${container}" 2>/dev/null)
+    return 0
+}
+
+# Filled by cmd_network_ipv6: the containers to reconnect and their aliases.
+NETWORK_MEMBERS=()
+declare -A NETWORK_ALIASES=()
+
+# reconnect_command <container>: the docker command that reconnects it.
+reconnect_command() {
+    local name="$1" alias
+    local -a args=(docker network connect)
+    while IFS= read -r alias; do
+        [[ -n "${alias}" ]] && args+=(--alias "${alias}")
+    done <<<"${NETWORK_ALIASES[${name}]:-}"
+    args+=("${PROXY_NETWORK}" "${name}")
+    printf '%q ' "${args[@]}"
+}
+
+# network_ipv6_failed <step>: stop and say how to finish by hand.
+network_ipv6_failed() {
+    local name
+    log_error "Recreating the network failed at: $1."
+    printf 'Check the state and finish by hand, in this order:\n'
+    printf '  docker network inspect %q >/dev/null || docker network create --ipv6 %q\n' "${PROXY_NETWORK}" "${PROXY_NETWORK}"
+    printf '  sudo vps-stack proxy up\n'
+    for name in "${NETWORK_MEMBERS[@]+"${NETWORK_MEMBERS[@]}"}"; do
+        printf '  %s\n' "$(reconnect_command "${name}")"
+    done
+    printf '(A "already exists" or "already connected" error in one of these means that step was done.)\n'
+    exit 1
+}
+
+# cmd_network_ipv6: move an existing IPv4-only proxy network to IPv6. A
+# network cannot be changed in place, so it is recreated: every attached
+# container, running or stopped, is disconnected; the proxy stops; the
+# network is removed and created again with IPv6; the proxy starts; the
+# containers are reconnected with the same aliases.
+cmd_network_ipv6() {
+    local name alias version
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dry-run) DRY_RUN=1 ;;
+            --yes | -y) ASSUME_YES=1 ;;
+            *) die "Unknown option: $1" ;;
+        esac
+        shift
+    done
+    require_root
+
+    if ! docker network inspect "${PROXY_NETWORK}" >/dev/null 2>&1; then
+        ensure_network
+        log_ok "Network ${PROXY_NETWORK} did not exist and is created with IPv6. Start the proxy: vps-stack proxy up"
+        return 0
+    fi
+    if network_has_ipv6; then
+        log_ok "Network ${PROXY_NETWORK} already has IPv6. Nothing to do."
+        return 0
+    fi
+
+    version="$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
+    if [[ "${version%%.*}" =~ ^[0-9]+$ ]] && [[ "${version%%.*}" -lt 27 ]]; then
+        log_warn "Docker ${version}: ip6tables is enabled by default only since Docker Engine 27.0.1. Without it IPv6 clients keep reaching Caddy as the gateway; see \"ip6tables\" in the Docker daemon documentation."
+    fi
+
+    # `docker ps -a --filter network=` also finds stopped containers: they
+    # would not start any more if left pointing at the removed network.
+    while IFS= read -r name; do
+        [[ -n "${name}" && "${name}" != "${CADDY_CONTAINER}" ]] || continue
+        NETWORK_MEMBERS+=("${name}")
+        NETWORK_ALIASES["${name}"]="$(network_aliases "${name}")"
+    done < <(docker ps -a --filter "network=${PROXY_NETWORK}" --format '{{.Names}}')
+
+    cat <<PLAN
+Network ${PROXY_NETWORK} is IPv4 only: IPv6 clients reach the sites as the
+Docker gateway. It is recreated with IPv6:
+  1. disconnect the attached containers: ${NETWORK_MEMBERS[*]:-(none besides ${CADDY_CONTAINER})}
+  2. stop the proxy, remove the network, create it again with IPv6
+  3. start the proxy, reconnect the containers with their aliases
+Every site is unreachable meanwhile, usually for less than a minute.
+PLAN
+    for name in "${NETWORK_MEMBERS[@]+"${NETWORK_MEMBERS[@]}"}"; do
+        printf '  afterwards: %s\n' "$(reconnect_command "${name}")"
+    done
+    confirm "Recreate the network ${PROXY_NETWORK} with IPv6?" || die "Aborted. Nothing was changed."
+
+    for name in "${NETWORK_MEMBERS[@]+"${NETWORK_MEMBERS[@]}"}"; do
+        run docker network disconnect "${PROXY_NETWORK}" "${name}" || network_ipv6_failed "disconnecting ${name}"
+    done
+    run compose down || network_ipv6_failed "stopping the proxy"
+    run docker network rm "${PROXY_NETWORK}" >/dev/null || network_ipv6_failed "removing the network"
+    run docker network create --ipv6 "${PROXY_NETWORK}" >/dev/null || network_ipv6_failed "creating the network with IPv6"
+    cmd_up || network_ipv6_failed "starting the proxy"
+    for name in "${NETWORK_MEMBERS[@]+"${NETWORK_MEMBERS[@]}"}"; do
+        local -a args=(docker network connect)
+        while IFS= read -r alias; do
+            [[ -n "${alias}" ]] && args+=(--alias "${alias}")
+        done <<<"${NETWORK_ALIASES[${name}]:-}"
+        run "${args[@]}" "${PROXY_NETWORK}" "${name}" || network_ipv6_failed "reconnecting ${name}"
+    done
+    is_dry_run && return 0
+    network_has_ipv6 || network_ipv6_failed "checking the new network"
+    log_ok "Network ${PROXY_NETWORK} has IPv6. Caddy now sees the real address of IPv6 clients."
+}
+
 main() {
     local command="${1:-}"
     [[ $# -gt 0 ]] && shift
@@ -130,7 +259,7 @@ main() {
             usage
             return 0
             ;;
-        up | down | restart | reload | validate | status | logs) ;;
+        up | down | restart | reload | validate | status | logs | network-ipv6) ;;
         *)
             usage >&2
             die "Unknown command: ${command}"
@@ -145,6 +274,7 @@ main() {
         validate) cmd_validate "$@" ;;
         status) compose ps ;;
         logs) compose logs --tail 100 "$@" ;;
+        network-ipv6) cmd_network_ipv6 "$@" ;;
         *) ;;
     esac
 }
