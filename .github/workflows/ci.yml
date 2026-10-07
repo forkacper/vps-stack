@@ -43,8 +43,9 @@ jobs:
         run: |
           docker compose -f proxy/docker-compose.yml config --quiet
           # The example refers to the project's own .env, which only exists
-          # on a real deployment. An empty one is enough to check the syntax.
-          touch examples/.env
+          # on a real deployment. One with APP_TAG is enough to check the
+          # syntax (the image reference requires it).
+          printf 'APP_TAG=example\n' >examples/.env
           docker compose -f examples/project-compose.yml.example config --quiet
           rm -f examples/.env
 

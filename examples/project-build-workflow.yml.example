@@ -1,0 +1,110 @@
+# Example GitHub Actions workflow for a PROJECT hosted on a vps-stack server
+# (not for vps-stack itself). Copy it into the project's repository as
+# .github/workflows/build.yml. Application-specific places are marked
+# TODO(user).
+#
+# What it does:
+#   - pull request: runs the tests and builds the image; nothing is pushed;
+#   - push to main: runs the tests, builds the image and pushes it to the
+#     GitHub Container Registry as ghcr.io/<owner>/<repository>:<commit SHA,
+#     12 characters>.
+#
+# It does NOT deploy. The image is built here, not on the server, so a build
+# never takes memory from the running projects, and every version stays in
+# the registry, which is what makes a rollback possible.
+#
+# One-time setup on the server (only for a private package): log in with a
+# personal access token that has the read:packages scope only:
+#   docker login ghcr.io
+#
+# Deploy on the server, as the administrator (the summary of every workflow
+# run prints these commands with the right tag):
+#   cd /srv/example-app
+#   sed -i 's/^APP_TAG=.*/APP_TAG=<tag>/' .env
+#   docker compose pull
+#   docker compose run --rm app <migration command>   # TODO(user), if any
+#   docker compose up -d
+#
+# Rollback: the same commands with the previous tag. A rollback does not undo
+# database migrations, so keep migrations backwards compatible (add a column
+# in one release, remove the old one in a later release). Before a risky
+# migration run: sudo vps-stack backup run
+#
+# Automatic deployment from GitHub is deliberately not included: it needs an
+# SSH key stored in the GitHub secrets, and if that key can run docker, a
+# leaked secret means root on the server (docs/security-model.md, the docker
+# group). If you add it later, give it a dedicated key restricted with
+# command="..." in authorized_keys that runs one deploy script accepting only
+# a tag.
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  # Cancel superseded runs of a pull request, never a build of main.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Pushing to ghcr.io with GITHUB_TOKEN. Pull requests from forks get a
+      # read-only token regardless, and the push step runs on main only.
+      packages: write
+    steps:
+      # Pinned to the commit of the v7.0.1 tag, the same as in the vps-stack
+      # CI. Update it the same way: resolve the tag through the GitHub API.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Tests
+        run: |
+          # TODO(user): the project's test command, e.g. `make test`.
+          echo "Replace this step with the project's tests." >&2
+          exit 1
+
+      - name: Image name
+        id: image
+        run: |
+          # The registry requires lowercase names; owners and repositories
+          # on GitHub may contain capitals.
+          printf 'ref=ghcr.io/%s:%s\n' "${GITHUB_REPOSITORY,,}" "${GITHUB_SHA::12}" >>"${GITHUB_OUTPUT}"
+          printf 'tag=%s\n' "${GITHUB_SHA::12}" >>"${GITHUB_OUTPUT}"
+
+      - name: Build
+        env:
+          IMAGE: ${{ steps.image.outputs.ref }}
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${IMAGE}" .
+
+      - name: Push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE: ${{ steps.image.outputs.ref }}
+          TAG: ${{ steps.image.outputs.tag }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "${REGISTRY_TOKEN}" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          docker push "${IMAGE}"
+          docker logout ghcr.io
+          {
+            printf '## Image\n\n    %s\n\n' "${IMAGE}"
+            printf '## Deploy on the server\n\n'
+            printf '```bash\n'
+            printf 'cd /srv/example-app\n'
+            printf "sed -i 's/^APP_TAG=.*/APP_TAG=%s/' .env\n" "${TAG}"
+            printf 'docker compose pull\n'
+            printf 'docker compose up -d\n'
+            printf '```\n'
+          } >>"${GITHUB_STEP_SUMMARY}"

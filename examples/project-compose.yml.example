@@ -28,7 +28,10 @@ services:
     # TODO(user): application image. Configure trusted proxies in the
     # application (the Docker network addresses), otherwise HTTPS detection,
     # session cookies and OAuth callback URLs may be wrong.
-    image: example/app:TODO
+    # Built and pushed by examples/project-build-workflow.yml.example. The
+    # tag comes from APP_TAG in .env, so a deploy or a rollback is a change
+    # of one line there.
+    image: ghcr.io/example-owner/example-app:${APP_TAG:?set APP_TAG in .env}
     restart: unless-stopped
     mem_limit: 512m
     env_file: .env

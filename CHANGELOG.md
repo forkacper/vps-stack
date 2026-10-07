@@ -9,6 +9,13 @@ incompatible way.
 
 ## [Unreleased]
 
+### Added
+
+- Example GitHub Actions workflow for projects
+  (`examples/project-build-workflow.yml.example`): tests, image build and
+  push to ghcr.io, with manual deploy and rollback steps. The project Compose
+  example takes the application image tag from `APP_TAG`.
+
 ## [0.1.0-alpha.1]
 
 First version. The code has not been confirmed on a real server yet (see the
