@@ -1,8 +1,8 @@
 # Monitoring
 
 The minimum for one person and one server. `vps-stack` deliberately installs
-no monitoring system: below is what is worth setting up yourself, most
-important first.
+no monitoring system by default (the status page in section 5 is optional):
+below is what is worth setting up yourself, most important first.
 
 The principle: **monitoring has to run outside the server.** A server that is
 down will not send an alert saying that it is down.
@@ -46,7 +46,59 @@ sudo vps-stack verify
 Among other things it shows disk usage, a pending reboot, the state of the
 proxy, ports exposed to the internet and the age of the last backup.
 
-## 5. Optional: server metrics (Netdata)
+## 5. Optional: the built-in status page
+
+A read-only page in the browser with the current state of the server: CPU,
+memory, swap, disk and load, and every container with its image, state,
+health check, uptime, restarts, CPU and memory. It refreshes every 10
+seconds. It is **disabled by default** and is meant for looking at the
+server, not for alerting: it has no history and sends no notifications.
+
+```bash
+sudo vps-stack monitor enable status.example.com
+```
+
+The domain needs a DNS record pointing at the server, like any site. The
+command generates a login and a password and shows the password **once**:
+save it in your password manager. A new password:
+`sudo vps-stack monitor password`. The state:
+`sudo vps-stack monitor status`. Removal: `sudo vps-stack monitor disable`.
+
+How it works:
+
+- A small collector (systemd service `vps-stack-monitor`) writes
+  `/run/vps-stack-monitor/status.json` every 10 seconds. It asks Docker for a
+  fixed list of fields only (name, image, state, health, start time,
+  restarts, CPU, memory). **Environment variables, labels, mounts, ports,
+  networks and logs are never read**, so they cannot reach the page.
+- Caddy serves the page and the data file at the domain. Nothing that runs
+  in a container gets access to Docker: the page has no backend and Caddy
+  only reads a file.
+- Access requires the login and password (HTTPS, the password is stored only
+  as a bcrypt hash).
+- fail2ban counts failed logins (wrong password). 5 within 10 minutes ban the
+  address for 1 hour, **on the status page only**: the ban happens inside
+  Caddy, not in the firewall, so the address can still reach your other
+  sites. Private and Docker addresses are never banned.
+
+Enabling and disabling restart the proxy container (a few seconds without any
+site), because Caddy gets two extra read-only mounts.
+
+What to know:
+
+- If somebody obtains the login and password, they see what the page shows:
+  container names, image versions and resource usage. Not secrets.
+- With Docker's default settings, IPv6 clients may reach Caddy through
+  Docker's userland proxy and show up with the address of a Docker gateway.
+  Such addresses are never banned, so failed logins over IPv6 may go
+  unbanned; the generated password is long enough that guessing it is not
+  realistic anyway. Check on your server what `vps-stack monitor status` and
+  the access log in `/var/log/vps-stack-monitor/` show for your own IPv6
+  requests.
+- The page is not a replacement for the external uptime check above: when
+  the server is down, the page is down too.
+
+## 6. Optional: server metrics (Netdata)
 
 Charts of CPU, memory, disk and network with alerts. `vps-stack` does not
 install it, because it is one more service to maintain and uses more memory.

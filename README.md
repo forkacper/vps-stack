@@ -31,6 +31,8 @@ proxy container.
 - Runs encrypted backups (restic) to a repository outside the server.
 - Checks the state of the server (`verify`) and looks for ports exposed to the
   internet (`check-ports`).
+- Optionally, a read-only status page at its own domain behind a login:
+  server resources and containers, refreshed every 10 seconds (`monitor`).
 
 The scripts hold your hand through the risky steps: before they disable SSH
 passwords or enable the firewall, they require confirmation that a second SSH
@@ -138,6 +140,7 @@ it.
 | `vps-stack check-dns <domain>...` | checks that a domain points at this server |
 | `vps-stack proxy up\|down\|restart\|reload\|validate\|status\|logs` | manages the proxy container |
 | `vps-stack backup init\|run\|setup` | restic backup: initialise, run, install the cron job |
+| `vps-stack monitor enable <domain>\|disable\|password\|status` | optional status page: resources and containers, behind a login |
 | `vps-stack version`, `vps-stack help` | version and help |
 
 Every command accepts `--help`.
@@ -216,7 +219,7 @@ after changes in `proxy/` run `sudo vps-stack proxy restart`.
 - [docs/project-contract.md](docs/project-contract.md): requirements for projects
 - [docs/backup-restore.md](docs/backup-restore.md): backup and restore
 - [docs/ssh-recovery.md](docs/ssh-recovery.md): what to do when SSH is locked
-- [docs/monitoring.md](docs/monitoring.md): the minimum of monitoring
+- [docs/monitoring.md](docs/monitoring.md): the minimum of monitoring and the optional status page
 - [docs/testing.md](docs/testing.md): what is tested and the manual test procedure
 - [docs/decisions.md](docs/decisions.md): reasoning behind the decisions
 

@@ -69,6 +69,12 @@ themselves, but the Caddy image is pinned to a version and you update it by
 hand. Docker packages from Docker's own repository are not covered by the
 automatic security updates: update them with `apt upgrade`.
 
+**What the status page shows.** When enabled (`vps-stack monitor`), the
+page behind its login shows container names, image versions and resource
+usage. The collector never reads environment variables, labels, mounts or
+logs, and nothing in a container gets access to Docker for it. A leaked
+status page password discloses the server's inventory, not its secrets.
+
 **Secrets in the projects' `.env` files.** They lie on the disk in plain text
 and go into the encrypted backup. Whoever has root has all of them.
 
@@ -77,8 +83,14 @@ and go into the encrypted backup. Whoever has root has all of them.
 With password login disabled, fail2ban does not really improve the security of
 SSH: a dictionary attack cannot be carried out anyway. Its practical role is
 to reduce noise in the logs. It is installed because it is cheap and does no
-harm, but do not treat it as a layer of protection. Only the `sshd` jail is
-configured.
+harm, but do not treat it as a layer of protection. Provisioning configures
+only the `sshd` jail.
+
+The optional status page (`vps-stack monitor`) adds the `vps-stack-monitor`
+jail. Its password is long and random, so here too the jail does not stand
+between an attacker and the password; it stops a flood of login attempts,
+each of which costs the server a bcrypt computation. It bans inside Caddy, on
+the status page only, and never bans private or Docker addresses.
 
 ## What stays on your side
 

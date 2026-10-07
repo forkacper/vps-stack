@@ -15,6 +15,20 @@ incompatible way.
   (`examples/project-build-workflow.yml.example`): tests, image build and
   push to ghcr.io, with manual deploy and rollback steps. The project Compose
   example takes the application image tag from `APP_TAG`.
+- `monitor`: optional, read-only status page at its own domain (server
+  resources and containers, refreshed every 10 seconds). Served by Caddy from
+  a file written by a collector service, which reads a fixed set of fields
+  and never environment variables or logs. Generated login and password;
+  a fail2ban jail bans repeated failed logins inside Caddy, on the status
+  page only.
+
+### Changed
+
+- `add-site`: the duplicate and DNS checks moved to `lib/common.sh`, shared
+  with `monitor enable`. The DNS mismatch question now reads "Continue
+  despite the DNS mismatch?".
+- CI installs `jq` in the bats container and checks the status page (Caddy
+  configuration, fail2ban filter, systemd unit, Compose overlay).
 
 ## [0.1.0-alpha.1]
 

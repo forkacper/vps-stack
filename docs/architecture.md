@@ -108,6 +108,18 @@ The clone of the `vps-stack` repository may live somewhere other than
 | `/etc/fstab`, `/swapfile` | swap file |
 | `/usr/local/bin/vps-stack` | symlink to `bin/vps-stack` |
 
+The optional status page (`vps-stack monitor enable`) adds, and `disable`
+removes:
+
+| File | Content |
+|---|---|
+| `/etc/systemd/system/vps-stack-monitor.service` | collector writing `status.json` every 10 seconds |
+| `/etc/tmpfiles.d/vps-stack-monitor.conf` | creates `/run/vps-stack-monitor/` at boot, before Docker starts Caddy |
+| `/etc/fail2ban/jail.d/vps-stack-monitor.local`, `filter.d/vps-stack-monitor.conf`, `action.d/vps-stack-monitor.conf` | the `vps-stack-monitor` jail |
+| `/etc/vps-stack/monitor.env`, `monitor-banned.list` | domain and login; addresses banned by fail2ban (600) |
+| `/etc/vps-stack/sites/_monitor.caddy`, `sites/.monitor-banned` | the site (600, holds the password hash) and the ban list it imports |
+| `/var/log/vps-stack-monitor/access.log` | access log of the status page, rotated by Caddy (kept after `disable`) |
+
 Before an existing file is changed, a copy `<file>.bak.<date-time>` is made.
 
 ## Proxy
@@ -120,6 +132,12 @@ headers), and every site imports it.
 The container runs with dropped capabilities (`cap_drop: ALL` plus only
 `NET_BIND_SERVICE`), with `no-new-privileges` and a 256 MB memory limit. The
 Docker socket is not mounted into it.
+
+While the status page is enabled, `vps-stack proxy` adds
+`proxy/docker-compose.monitor.yml`, which mounts the page
+(`monitor/www/`) and `/run/vps-stack-monitor/` read-only and the log
+directory of the status page writable. The directory is mounted rather than
+the file, so the container sees every new `status.json` at once.
 
 A practical note: `proxy/Caddyfile` is mounted as a single file. When
 `git pull` replaces it, the running container still sees the old version.

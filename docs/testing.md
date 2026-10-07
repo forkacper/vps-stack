@@ -10,8 +10,11 @@ without a server:
 | `shellcheck`, `bash -n` | syntax and common mistakes in all scripts |
 | `bats tests/validate.bats` | validation of domains, upstreams and sizes |
 | `bats tests/render.bats` | generation of site files and rejection of injection attempts |
-| `docker compose config` | validity of `proxy/docker-compose.yml` |
-| `caddy validate` | validity of the Caddyfile with an empty `sites/` and with a generated site file |
+| `bats tests/monitor.bats` | status page: logins, hashes, IP addresses, site file, ban list, `status.json` built only from the allowed fields |
+| `fail2ban-regex` | the status page filter on `tests/fixtures/monitor-access.log`: failed logins match, requests without credentials and injection attempts do not |
+| `systemd-analyze verify` | the collector unit of the status page |
+| `docker compose config` | validity of `proxy/docker-compose.yml`, alone and with `docker-compose.monitor.yml` |
+| `caddy validate` | validity of the Caddyfile with an empty `sites/`, with a generated site file and with the status page (empty and non-empty ban list) |
 | secret scan (gitleaks) | no keys or passwords in the repository and its history |
 
 **CI does not test provisioning.** It runs neither `provision`, `ssh-port`,
@@ -28,6 +31,8 @@ works on a server".
 shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh tests/helpers.bash examples/*.sh.example
 bats tests/
 ```
+
+The tests of the status page need `jq`.
 
 ## Manual test procedure
 
@@ -150,7 +155,31 @@ Following [backup-restore.md](backup-restore.md):
 - [ ] **Restore test** from section (b): the dump imports into a temporary
       database, the number of tables and rows matches.
 
-### 10. Cleanup
+### 10. Status page (optional)
+
+With a test domain pointing at the server (`ACME_CA` set to staging):
+
+- [ ] `sudo vps-stack monitor enable <domain>` finishes; the login and
+      password are shown once.
+- [ ] `systemctl status vps-stack-monitor` is active, and
+      `/run/vps-stack-monitor/status.json` changes every 10 seconds.
+- [ ] The page asks for the login; with the password it shows the server and
+      the containers. A test container started with `-e TEST_SECRET=...`
+      appears on the page, its value does not appear in `status.json`.
+- [ ] `sudo fail2ban-client status vps-stack-monitor` shows the jail. 5 wrong
+      passwords from another public address: that address gets a closed
+      connection on the status page and still reaches the other sites; after
+      `sudo vps-stack monitor unban <ip>` it gets the login prompt again.
+- [ ] A request over IPv6: note which address the access log in
+      `/var/log/vps-stack-monitor/access.log` records (the real one or a
+      Docker gateway).
+- [ ] After a reboot the page works again without any command.
+- [ ] `sudo vps-stack verify` shows the three status page rows as OK.
+- [ ] `sudo vps-stack monitor password`: the old password stops working.
+- [ ] `sudo vps-stack monitor disable`: the page, the service and the jail are
+      gone, the other sites work.
+
+### 11. Cleanup
 
 - [ ] Delete the test machine, the test restic repository and the DNS records.
 

@@ -51,5 +51,7 @@ shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh tests/helpers.bash examples/*.
 bats tests/
 ```
 
+The tests of the status page need `jq`.
+
 The full scope of the automated tests and the manual test procedure:
 [docs/testing.md](docs/testing.md).
