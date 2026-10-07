@@ -4,6 +4,9 @@
 "use strict";
 
 const REFRESH_MS = 10000;
+// history.json gains a sample every 5 minutes; checking every minute is plenty.
+const HISTORY_REFRESH_MS = 60000;
+const SVG_NS = "http://www.w3.org/2000/svg";
 // Data older than this is flagged: the collector writes every 10 seconds.
 const STALE_SECONDS = 30;
 
@@ -11,6 +14,8 @@ const $ = (id) => document.getElementById(id);
 
 let lastData = null;
 let lastError = null;
+let history = null;
+let historyRange = 86400;
 
 function formatBytes(bytes) {
     if (bytes === null || bytes === undefined) {
@@ -188,6 +193,7 @@ function renderContainers(containers, generatedAt) {
             mem.appendChild(bar);
         }
         tr.appendChild(cell(mem, "mem"));
+        tr.appendChild(cell(containerSparkline(c.name), "spark"));
 
         rows.push(tr);
     }
@@ -195,7 +201,7 @@ function renderContainers(containers, generatedAt) {
     if (rows.length === 0) {
         const tr = document.createElement("tr");
         const td = cell("No containers.", "empty");
-        td.colSpan = 7;
+        td.colSpan = 8;
         tr.appendChild(td);
         rows.push(tr);
     }
@@ -236,6 +242,219 @@ function renderFreshness() {
     banner.textContent = message;
 }
 
+// --- history ----------------------------------------------------------------
+
+// samplesIn(seconds): the samples of the last <seconds>, oldest first.
+function samplesIn(seconds) {
+    if (!history || !Array.isArray(history.samples)) {
+        return [];
+    }
+    const newest = history.samples.length > 0 ? history.samples[history.samples.length - 1].t : 0;
+    return history.samples.filter((s) => s.t >= newest - seconds);
+}
+
+// A gap longer than this many sampling intervals (the collector or the
+// server was down) breaks the line instead of being drawn across.
+const GAP_FACTOR = 2.5;
+
+function segments(points, interval) {
+    const result = [];
+    let current = [];
+    let previous = null;
+    for (const p of points) {
+        if (p.v === null || p.v === undefined || Number.isNaN(p.v)) {
+            previous = null;
+            if (current.length > 0) {
+                result.push(current);
+                current = [];
+            }
+            continue;
+        }
+        if (previous !== null && p.t - previous > interval * GAP_FACTOR && current.length > 0) {
+            result.push(current);
+            current = [];
+        }
+        current.push(p);
+        previous = p.t;
+    }
+    if (current.length > 0) {
+        result.push(current);
+    }
+    return result;
+}
+
+function svg(tag, attributes) {
+    const element = document.createElementNS(SVG_NS, tag);
+    for (const [name, value] of Object.entries(attributes || {})) {
+        element.setAttribute(name, String(value));
+    }
+    return element;
+}
+
+// plot(series, from, to, yMin, yMax, width, height, interval): an SVG with one
+// polyline per continuous segment of every series.
+// Series: [{points: [{t, v}], className}].
+function plot(series, from, to, yMin, yMax, width, height, interval) {
+    const chart = svg("svg", { viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: "none", "aria-hidden": "true" });
+    const span = Math.max(to - from, 1);
+    const range = yMax > yMin ? yMax - yMin : 1;
+    const x = (t) => ((t - from) / span) * width;
+    const y = (v) => height - ((Math.min(Math.max(v, yMin), yMin + range) - yMin) / range) * (height - 2) - 1;
+    for (const s of series) {
+        for (const segment of segments(s.points, interval)) {
+            const coordinates = segment.length === 1
+                ? `${x(segment[0].t) - 1},${y(segment[0].v)} ${x(segment[0].t) + 1},${y(segment[0].v)}`
+                : segment.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+            chart.appendChild(svg("polyline", { points: coordinates, class: s.className, "vector-effect": "non-scaling-stroke" }));
+        }
+    }
+    return chart;
+}
+
+function formatTime(epoch) {
+    const date = new Date(epoch * 1000);
+    const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return `${date.toLocaleDateString([], { day: "numeric", month: "short" })} ${time}`;
+}
+
+function stats(values) {
+    const numbers = values.filter((v) => typeof v === "number" && !Number.isNaN(v));
+    if (numbers.length === 0) {
+        return null;
+    }
+    return { min: Math.min(...numbers), max: Math.max(...numbers), last: numbers[numbers.length - 1] };
+}
+
+// The charts: what each one draws, its scale and how values are shown.
+const CHARTS = {
+    cpu: {
+        series: [
+            { key: "cpu_max", className: "line-faint" },
+            { key: "cpu", className: "line-main" },
+        ],
+        max: () => 100,
+        format: (v) => formatPercent(v),
+        summary: "cpu",
+    },
+    mem: {
+        series: [{ key: "mem", className: "line-main" }],
+        max: (samples) => Math.max(...samples.map((s) => s.mem_total || 0)),
+        format: (v) => formatBytes(v),
+        summary: "mem",
+        of: "mem_total",
+    },
+    disk: {
+        series: [{ key: "disk", className: "line-main" }],
+        max: (samples) => Math.max(...samples.map((s) => s.disk_total || 0)),
+        format: (v) => formatBytes(v),
+        summary: "disk",
+        of: "disk_total",
+    },
+    load: {
+        series: [{ key: "load", className: "line-main" }],
+        max: (samples) => Math.max(1, ...samples.map((s) => s.load || 0)) * 1.1,
+        format: (v) => (v === null || v === undefined ? "–" : v.toFixed(2)),
+        summary: "load",
+    },
+};
+
+function renderHistory() {
+    const samples = samplesIn(historyRange);
+    const interval = (history && history.interval_seconds) || 300;
+    $("history-empty").hidden = samples.length > 1;
+    $("charts").hidden = samples.length <= 1;
+    if (samples.length <= 1) {
+        return;
+    }
+    const from = samples[0].t;
+    const to = samples[samples.length - 1].t;
+
+    for (const article of document.querySelectorAll("[data-chart]")) {
+        const definition = CHARTS[article.dataset.chart];
+        const series = definition.series.map((s) => ({
+            className: s.className,
+            points: samples.map((sample) => ({ t: sample.t, v: sample[s.key] })),
+        }));
+        const yMax = definition.max(samples);
+        const plotArea = article.querySelector(".chart-plot");
+        plotArea.replaceChildren(plot(series, from, to, 0, yMax, 600, 120, interval));
+
+        const summary = stats(samples.map((s) => s[definition.summary]));
+        const value = article.querySelector(".chart-value");
+        if (summary === null) {
+            value.textContent = "–";
+        } else {
+            const of = definition.of ? ` of ${definition.format(samples[samples.length - 1][definition.of])}` : "";
+            value.textContent = `${definition.format(summary.last)}${of} · lowest ${definition.format(summary.min)} · highest ${definition.format(summary.max)}`;
+        }
+        article.querySelector(".chart-axis").textContent = `${formatTime(from)} – ${formatTime(to)}`;
+        plotArea.setAttribute("role", "img");
+        plotArea.setAttribute("aria-label", `${article.querySelector("h3").textContent}: ${value.textContent}`);
+    }
+}
+
+// containerSparkline(name): the memory of one container over the last 24
+// hours, or a dash when there is no history for it.
+function containerSparkline(name) {
+    const samples = samplesIn(86400);
+    const points = samples.map((s) => ({ t: s.t, v: s.containers ? s.containers[name] : null }));
+    const known = points.filter((p) => typeof p.v === "number");
+    if (known.length < 2) {
+        const dash = document.createElement("span");
+        dash.className = "muted";
+        dash.textContent = "–";
+        return dash;
+    }
+    const interval = (history && history.interval_seconds) || 300;
+    // From the lowest to the highest value: the sparkline shows the trend
+    // (e.g. memory creeping up), the column next to it the absolute value.
+    // The scale spans at least 10% of the value, so that noise in a stable
+    // value does not look like a swing.
+    const range = stats(known.map((p) => p.v));
+    const minSpan = range.max * 0.1;
+    let low = range.min;
+    let high = range.max;
+    if (high - low < minSpan) {
+        const middle = (high + low) / 2;
+        low = middle - minSpan / 2;
+        high = middle + minSpan / 2;
+    }
+    const chart = plot([{ points, className: "line-main" }], samples[0].t, samples[samples.length - 1].t,
+        low, high, 120, 28, interval);
+    chart.setAttribute("class", "sparkline");
+    const wrapper = document.createElement("span");
+    wrapper.title = `24 h: ${formatBytes(range.min)} – ${formatBytes(range.max)}`;
+    wrapper.appendChild(chart);
+    return wrapper;
+}
+
+async function refreshHistory() {
+    try {
+        const response = await fetch("history.json", { cache: "no-store", credentials: "same-origin" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        history = await response.json();
+    } catch (error) {
+        // The page works without history (e.g. right after enabling).
+        history = null;
+    }
+    renderHistory();
+    if (lastData) {
+        renderContainers(Array.isArray(lastData.containers) ? lastData.containers : [], lastData.generated_at);
+    }
+}
+
+for (const button of document.querySelectorAll("[data-range]")) {
+    button.addEventListener("click", () => {
+        historyRange = Number(button.dataset.range);
+        for (const other of document.querySelectorAll("[data-range]")) {
+            other.setAttribute("aria-pressed", String(other === button));
+        }
+        renderHistory();
+    });
+}
+
 async function refresh() {
     try {
         const response = await fetch("status.json", { cache: "no-store", credentials: "same-origin" });
@@ -254,11 +473,14 @@ async function refresh() {
 }
 
 refresh();
+refreshHistory();
 setInterval(refresh, REFRESH_MS);
+setInterval(refreshHistory, HISTORY_REFRESH_MS);
 // The age label keeps counting between refreshes.
 setInterval(renderFreshness, 1000);
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
         refresh();
+        refreshHistory();
     }
 });

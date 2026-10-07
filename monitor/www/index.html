@@ -48,6 +48,43 @@
             </article>
         </section>
 
+        <section class="history" aria-labelledby="history-title">
+            <div class="section-head">
+                <h2 id="history-title">History</h2>
+                <div class="range" role="group" aria-label="Time range">
+                    <button type="button" data-range="86400" aria-pressed="true">24 h</button>
+                    <button type="button" data-range="604800" aria-pressed="false">7 days</button>
+                </div>
+            </div>
+            <p class="muted" id="history-empty" hidden>The history appears a few minutes after the collector starts: one sample every 5 minutes, kept for 7 days.</p>
+            <div class="charts" id="charts">
+                <article class="card chart" data-chart="cpu">
+                    <h3>CPU <span class="muted">average and highest</span></h3>
+                    <p class="chart-value"></p>
+                    <div class="chart-plot"></div>
+                    <p class="muted chart-axis"></p>
+                </article>
+                <article class="card chart" data-chart="mem">
+                    <h3>Memory</h3>
+                    <p class="chart-value"></p>
+                    <div class="chart-plot"></div>
+                    <p class="muted chart-axis"></p>
+                </article>
+                <article class="card chart" data-chart="disk">
+                    <h3>Disk /</h3>
+                    <p class="chart-value"></p>
+                    <div class="chart-plot"></div>
+                    <p class="muted chart-axis"></p>
+                </article>
+                <article class="card chart" data-chart="load">
+                    <h3>Load <span class="muted">1 minute</span></h3>
+                    <p class="chart-value"></p>
+                    <div class="chart-plot"></div>
+                    <p class="muted chart-axis"></p>
+                </article>
+            </div>
+        </section>
+
         <section aria-labelledby="containers-title">
             <div class="section-head">
                 <h2 id="containers-title">Containers</h2>
@@ -64,6 +101,7 @@
                             <th scope="col" class="num">Restarts</th>
                             <th scope="col" class="num">CPU</th>
                             <th scope="col">Memory</th>
+                            <th scope="col">Memory, 24 h</th>
                         </tr>
                     </thead>
                     <tbody id="containers"></tbody>
