@@ -9,13 +9,16 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-07
+
 ### Added
 
 - Release process: version numbers without pre-release labels, tags
   `vX.Y.Z` with GitHub releases created by `.github/workflows/release.yml`,
   a version and changelog check in CI ([docs/releasing.md](docs/releasing.md)).
   The installation instructions check out the newest release.
-
+- [docs/ssh-keys.md](docs/ssh-keys.md): creating an SSH key and getting it
+  onto the server.
 - Example GitHub Actions workflow for projects
   (`examples/project-build-workflow.yml.example`): tests, image build and
   push to ghcr.io, with manual deploy and rollback steps. The project Compose
@@ -63,5 +66,6 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/forkacper/vps-stack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/forkacper/vps-stack/releases/tag/v0.1.0
