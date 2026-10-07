@@ -393,7 +393,11 @@ cmd_restore() {
         run restic "${args[@]}" || die "restic restore failed."
         is_dry_run && return 0
         log_ok "Restored ${group} (${SNAPSHOT}${SNAPSHOT_PATH:+, ${SNAPSHOT_PATH}}) into ${EXTRA_VALUE}."
-        log_info "The files keep their full paths below that directory, e.g. ${EXTRA_VALUE}$(backup_group_staging "${group}")/."
+        if [[ -n "${SNAPSHOT_PATH}" ]]; then
+            log_info "The files keep their full paths below that directory: ${EXTRA_VALUE}${SNAPSHOT_PATH}"
+        else
+            log_info "The files keep their full paths below that directory, e.g. ${EXTRA_VALUE}$(backup_group_staging "${group}")/."
+        fi
         log_info "Nothing live was changed. Importing a dump or copying files back: docs/backup-restore.md."
     )
 }
