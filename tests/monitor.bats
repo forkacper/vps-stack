@@ -161,3 +161,107 @@ monitor_render() {
     run monitor_ban_snippet "203.0.113.0/24"
     [ "$status" -ne 0 ]
 }
+
+# --- status.json ------------------------------------------------------------
+
+PROC="${REPO_ROOT}/tests/fixtures/proc"
+
+# Real output of the two Docker commands (MONITOR_*_FORMAT), one container
+# running with a health check, one without, one stopped.
+INSPECT=$'/example-app-web|nginx:1.27-alpine|running|healthy|2026-10-07T16:07:02.297006011Z|0\n/example-app-db|mysql:8.0|running|none|2026-10-06T20:27:59.05089189Z|2\n/old-job|example/job:1.2|exited|none|2026-10-01T10:00:00Z|0'
+STATS=$'example-app-web|0.05%|10.86MiB / 128MiB|8.48%\nexample-app-db|1.20%|525.7MiB / 768MiB|68.45%'
+
+@test "cpu: sample sums every column and counts iowait as idle" {
+    run monitor_cpu_sample "${PROC}/stat"
+    [ "$status" -eq 0 ]
+    [ "$output" = "10000 8500" ]
+}
+
+@test "cpu: percent between two samples" {
+    # A decimal-comma locale must not leak into the number. Where pl_PL is
+    # not installed, awk falls back to C and the check still holds.
+    LC_ALL=pl_PL.UTF-8 run monitor_cpu_percent 10000 8500 11000 9250
+    [ "$output" = "25.0" ]
+    run monitor_cpu_percent 10000 8500 10000 8500
+    [ "$output" = "" ]
+}
+
+@test "meminfo: values in bytes" {
+    run monitor_meminfo "${PROC}/meminfo"
+    [ "$output" = "4111978496 2055989248 2147479552 1073739776" ]
+}
+
+@test "host json: fields and values" {
+    local json
+    json="$(monitor_host_json "${PROC}" "vps-1" 2 "25.0" 42949672960 10737418240 true)"
+    [ "$(jq -c 'keys' <<<"${json}")" = '["cpu_percent","cpus","disk","hostname","load","memory","reboot_required","swap","uptime_seconds"]' ]
+    [ "$(jq -r '.hostname' <<<"${json}")" = "vps-1" ]
+    [ "$(jq '.load == [0.42, 0.35, 0.3]' <<<"${json}")" = "true" ]
+    [ "$(jq '.uptime_seconds' <<<"${json}")" = "93784" ]
+    [ "$(jq '.memory.used' <<<"${json}")" = "2055989248" ]
+    [ "$(jq '.swap.used' <<<"${json}")" = "1073739776" ]
+    [ "$(jq '.cpu_percent == 25' <<<"${json}")" = "true" ]
+    [ "$(jq '.reboot_required' <<<"${json}")" = "true" ]
+}
+
+@test "host json: the first sample has no cpu percent" {
+    run monitor_host_json "${PROC}" "vps-1" 2 "" 1 1 false
+    [ "$status" -eq 0 ]
+    [ "$(jq '.cpu_percent' <<<"${output}")" = "null" ]
+}
+
+@test "host json: a hostile hostname stays a plain string" {
+    local json
+    json="$(monitor_host_json "${PROC}" '"}, "x": "<script>' 1 "" 1 1 false)"
+    [ "$(jq -r '.hostname' <<<"${json}")" = '"}, "x": "<script>' ]
+    [ "$(jq 'has("x")' <<<"${json}")" = "false" ]
+}
+
+@test "containers json: only the allowed fields, sorted by name" {
+    local json
+    json="$(monitor_containers_json "${INSPECT}" "${STATS}")"
+    [ "$(jq -c '[.[].name]' <<<"${json}")" = '["example-app-db","example-app-web","old-job"]' ]
+    [ "$(jq -c '[.[] | keys] | unique' <<<"${json}")" = '[["cpu_percent","health","image","memory_limit","memory_percent","memory_used","name","restarts","started_at","state"]]' ]
+}
+
+@test "containers json: values of a running container" {
+    local web
+    web="$(monitor_containers_json "${INSPECT}" "${STATS}" | jq -c '.[] | select(.name == "example-app-web")')"
+    [ "${web}" = '{"name":"example-app-web","image":"nginx:1.27-alpine","state":"running","health":"healthy","started_at":"2026-10-07T16:07:02.297006011Z","restarts":0,"cpu_percent":0.05,"memory_used":11387535,"memory_limit":134217728,"memory_percent":8.48}' ]
+}
+
+@test "containers json: a stopped container has no usage and no health" {
+    local job
+    job="$(monitor_containers_json "${INSPECT}" "${STATS}" | jq -c '.[] | select(.name == "old-job")')"
+    [ "$(jq -c '[.health, .cpu_percent, .memory_used, .memory_percent]' <<<"${job}")" = "[null,null,null,null]" ]
+}
+
+@test "containers json: malformed lines are dropped, odd units become null" {
+    local json
+    json="$(monitor_containers_json $'garbage\n/a|img|running|none|t|0|extra\n/b|img|running|none|t|x' $'b|--|1.5ZiB / weird|n/a')"
+    [ "$(jq -c '[.[].name]' <<<"${json}")" = '["b"]' ]
+    [ "$(jq -c '.[0] | [.restarts, .cpu_percent, .memory_used, .memory_limit, .memory_percent]' <<<"${json}")" = "[null,null,null,null,null]" ]
+}
+
+@test "containers json: no containers is an empty array" {
+    run monitor_containers_json "" ""
+    [ "$status" -eq 0 ]
+    [ "$(jq -c . <<<"${output}")" = "[]" ]
+}
+
+@test "status json: top-level document" {
+    local host containers json
+    host="$(monitor_host_json "${PROC}" "vps-1" 2 "" 1 1 false)"
+    containers="$(monitor_containers_json "${INSPECT}" "${STATS}")"
+    json="$(monitor_status_json "2026-10-07T16:10:00Z" 10 true "${host}" "${containers}")"
+    [ "$(jq -c 'keys' <<<"${json}")" = '["containers","docker_available","generated_at","host","interval_seconds","version"]' ]
+    [ "$(jq -c '[.version, .interval_seconds, .docker_available, (.containers | length)]' <<<"${json}")" = "[1,10,true,3]" ]
+}
+
+@test "docker formats: no field outside the allow list is requested" {
+    local field
+    for field in Env Labels Mounts Ports Networks Cmd Entrypoint Args LogPath HostConfig NetworkSettings Volumes; do
+        [[ "${MONITOR_INSPECT_FORMAT}" != *"${field}"* ]]
+        [[ "${MONITOR_STATS_FORMAT}" != *"${field}"* ]]
+    done
+}

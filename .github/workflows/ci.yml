@@ -34,8 +34,11 @@ jobs:
           shellcheck --version
           shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh tests/helpers.bash examples/*.sh.example </dev/null
 
+      # The status page tests need jq, which the bats image does not ship.
       - name: bats
-        run: docker run --rm -v "${PWD}:/code:ro" bats/bats:1.14.0 tests/
+        run: |
+          docker run --rm -v "${PWD}:/code:ro" --entrypoint sh bats/bats:1.14.0 \
+            -c 'apk add --no-cache jq >/dev/null && bats tests/'
 
       - name: docker compose config
         env:
