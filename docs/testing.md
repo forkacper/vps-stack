@@ -213,11 +213,9 @@ After going through the procedure, add a row below **and** in the "Verified
 on" table in [README.md](../README.md) (and fill in the test columns of the
 supported systems table). Record only what you actually did.
 
-<!-- TODO(user): fill in after a test on a real machine. -->
-
 | Date | System | Provider | Commit | Result | Notes |
 |---|---|---|---|---|---|
-| | | | | | |
+| 2026-10-07 | Ubuntu 24.04.4 LTS (OpenSSH 9.6p1, restic 0.16.4, fail2ban 1.0.2) | OVH VPS | `7a9915a` (0.5.0) | OK | Whole procedure of docs/testing.md, `ssh.socket` mode, staging CA. Bugs found and fixed: `admin` group from cloud-init (0.4.1), apt lock held by automatic updates (0.4.2), IPv6 clients seen as the Docker gateway, status page polling with an old password, `monitor refresh` without `stack.env` (0.5.0) |
 
 Result: `OK` (the whole procedure), `partial` (list the skipped steps in the
 notes) or `error` (with the issue number).
