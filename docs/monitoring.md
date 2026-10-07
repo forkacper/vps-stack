@@ -121,7 +121,7 @@ If you want it:
   straight into a shell), or use the package from the distribution repository,
 - **do not open the dashboard port in ufw.** It should listen on `127.0.0.1`,
   and you connect through an SSH tunnel:
-  `ssh -L 19999:127.0.0.1:19999 admin@<server>`,
+  `ssh -L 19999:127.0.0.1:19999 sysadmin@<server>`,
 - after installing, run `sudo vps-stack check-ports` and make sure nothing new
   listens on all interfaces.
 
