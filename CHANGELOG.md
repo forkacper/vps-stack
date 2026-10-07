@@ -23,6 +23,15 @@ incompatible way.
   This relies on ip6tables being enabled in Docker, the default since Docker
   Engine 27.0.1.
 
+- The status page kept refreshing with the old password after a password
+  change: every refresh counted as a failed login, and fail2ban banned the
+  administrator's own address. After a rejected login the page now stops
+  and asks to be reloaded.
+- `provision` no longer prints systemd's "Synchronizing state of ... with
+  SysV service script" lines; `backup restore --path` shows where the
+  restored path is; hooks that write nothing (like the files example) no
+  longer leave an empty directory in every snapshot.
+
 ### Added
 
 - `proxy network-ipv6`: recreates an IPv4-only `proxy` network with IPv6,
