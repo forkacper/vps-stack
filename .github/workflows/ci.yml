@@ -85,7 +85,8 @@ jobs:
           unit_dir="$(mktemp -d)"
           bash -c 'source lib/common.sh
             render_template templates/vps-stack-monitor.service.tmpl \
-              "VPS_STACK_BIN=$1" "RUN_DIR=/run/vps-stack-monitor"' _ "${PWD}/bin/vps-stack" \
+              "VPS_STACK_BIN=$1" "RUN_DIR=/run/vps-stack-monitor" \
+              "STATE_DIR=/var/lib/vps-stack-monitor"' _ "${PWD}/bin/vps-stack" \
             >"${unit_dir}/vps-stack-monitor.service"
           cat "${unit_dir}/vps-stack-monitor.service"
           systemd-analyze verify "${unit_dir}/vps-stack-monitor.service"
