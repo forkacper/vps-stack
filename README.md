@@ -235,6 +235,7 @@ releases: [docs/releasing.md](docs/releasing.md).
 - [docs/testing.md](docs/testing.md): what is tested and the manual test procedure
 - [docs/decisions.md](docs/decisions.md): reasoning behind the decisions
 - [docs/releasing.md](docs/releasing.md): version numbers, branches, releases and updates
+- [docs/proposals/rootless-clients.md](docs/proposals/rootless-clients.md): proposal, not implemented: clients isolated with rootless Docker
 
 ## Issues and contributing
 
