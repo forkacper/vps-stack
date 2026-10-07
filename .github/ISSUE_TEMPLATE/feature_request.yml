@@ -1,0 +1,33 @@
+name: Feature request
+description: An idea for a new feature or a change in behaviour
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The project is minimal on purpose (one small server, one person). Before proposing a change, have a look at docs/decisions.md: some decisions are deliberate.
+
+        This is a hobby project, with no guarantee of a reply or of the change being made.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the situation, not the solution
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "it can be done by hand like this"
+  - type: input
+    id: os
+    attributes:
+      label: Affected system
+      placeholder: Ubuntu 24.04

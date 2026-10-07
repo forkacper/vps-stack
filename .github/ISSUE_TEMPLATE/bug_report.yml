@@ -1,0 +1,73 @@
+# TODO(user): repository address in the private reporting link below.
+name: Bug report
+description: Something behaves differently from what the documentation says
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. This is a hobby project: a reply may take a while.
+
+        **Report security vulnerabilities privately**, as described in SECURITY.md, not here:
+        https://github.com/TODO-user/vps-stack/security/advisories/new
+  - type: input
+    id: os
+    attributes:
+      label: System and version
+      description: Output of `grep -E '^(PRETTY_NAME|VERSION_CODENAME)=' /etc/os-release`
+      placeholder: Ubuntu 24.04.1 LTS (noble)
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: VPS provider or kind of machine
+      description: Provider name or e.g. "local virtual machine". Provider images differ in their SSH configuration.
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The full command you ran (replace real domains with example.com)
+      placeholder: sudo vps-stack provision --config ./stack.env
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: vps-stack version or commit
+      description: Output of `vps-stack version` and `git -C /opt/vps-stack rev-parse --short HEAD`
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happened, at which `[n/13]` step, what the message was
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt
+      description: |
+        The relevant part of `/var/log/vps-stack-provision.log` (or of the command output).
+
+        **Before pasting, remove IP addresses, domain names, user names, keys and any secrets.** Issues are public.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I removed IP addresses, domains and secrets from the logs
+          required: true
+        - label: I ran the command on a supported system (Ubuntu 24.04 or 26.04)
+          required: false
