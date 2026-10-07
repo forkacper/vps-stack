@@ -54,7 +54,7 @@ change a user would notice. Versions and the release procedure:
 ## Running the tests locally
 
 ```bash
-shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh tests/helpers.bash examples/*.sh.example
+shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh .github/scripts/*.sh tests/helpers.bash examples/*.sh.example
 bats tests/
 ```
 

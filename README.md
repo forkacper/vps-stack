@@ -128,8 +128,8 @@ Installation is always: clone, read, run. There is no "download and execute
 right away" installer and there never will be.
 
 The repository can live in any directory; `/opt/vps-stack` is recommended.
-Local configuration goes to `/etc/vps-stack/` and `git pull` does not touch
-it.
+Local configuration goes to `/etc/vps-stack/`; updating the code (checking
+out a newer release tag) does not touch it.
 
 ## Commands
 

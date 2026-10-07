@@ -41,7 +41,7 @@ tool, not growing these scripts.
 ## Configuration outside the repository
 
 The code lives in `/opt/vps-stack`, the settings in `/etc/vps-stack`. This
-way `git pull` never overwrites local settings, there are no secrets in the
+way updating the code never overwrites local settings, there are no secrets in the
 repository, and the configuration directory can be kept in your own private
 repository.
 

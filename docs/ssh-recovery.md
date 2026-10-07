@@ -12,7 +12,8 @@ at your provider.
   `AllowUsers` (the administrator and the deployment account) log in over SSH,
   by key only. Root and the provider's default user no longer do.
 - `Connection refused` points to a wrong port or sshd not running. No reply (a
-  timeout) points to the firewall or a fail2ban ban.
+  timeout) points to a firewall (ufw, or the firewall in your provider's panel
+  after a port change) or a fail2ban ban.
   `Permission denied (publickey)` points to the key or `AllowUsers`.
 
 ## Emergency access
