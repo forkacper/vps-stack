@@ -9,7 +9,8 @@ the project's image outside the server, with the deploy and rollback steps:
 
 ## 1. The shared network is external
 
-Provisioning creates the proxy network. A project does not create it, it only
+Provisioning creates the proxy network, with IPv6 enabled so that Caddy sees
+the real address of IPv6 clients. A project does not create it, it only
 joins it:
 
 ```yaml

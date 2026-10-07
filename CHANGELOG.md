@@ -9,6 +9,27 @@ incompatible way.
 
 ## [Unreleased]
 
+**Run once on existing servers: `sudo vps-stack proxy network-ipv6`**
+(a short outage of all sites while the network is recreated).
+
+### Fixed
+
+- IPv6 clients reached every site as the Docker gateway (e.g.
+  `172.18.0.1`) instead of their own address: the `proxy` network was
+  IPv4-only, so Docker published Caddy's ports on IPv6 through its userland
+  proxy. Applications saw the gateway in `X-Forwarded-For` and fail2ban could
+  not ban IPv6 attackers on the status page. The network is now created with
+  IPv6 (`provision`, `proxy up`), and ip6tables keeps the client address.
+  This relies on ip6tables being enabled in Docker, the default since Docker
+  Engine 27.0.1.
+
+### Added
+
+- `proxy network-ipv6`: recreates an IPv4-only `proxy` network with IPv6,
+  reconnecting every attached container (running or stopped) with its
+  aliases; `--dry-run` shows the plan. `verify` reports whether the network
+  has IPv6, and `provision` warns about an IPv4-only one.
+
 ## [0.4.2] - 2026-10-07
 
 ### Fixed

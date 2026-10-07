@@ -99,13 +99,11 @@ What to know:
 
 - If somebody obtains the login and password, they see what the page shows:
   container names, image versions and resource usage. Not secrets.
-- With Docker's default settings, IPv6 clients may reach Caddy through
-  Docker's userland proxy and show up with the address of a Docker gateway.
-  Such addresses are never banned, so failed logins over IPv6 may go
-  unbanned; the generated password is long enough that guessing it is not
-  realistic anyway. Check on your server what `vps-stack monitor status` and
-  the access log in `/var/log/vps-stack-monitor/` show for your own IPv6
-  requests.
+- IPv6 clients are seen with their real address, so they are banned like
+  IPv4 ones, as long as the `proxy` network has IPv6 (`verify` reports it).
+  On a network created by `vps-stack` 0.4.2 or older they show up as a
+  Docker gateway, which is never banned; run once
+  `sudo vps-stack proxy network-ipv6` ([architecture.md](architecture.md)).
 - The page is not a replacement for the external uptime check above: when
   the server is down, the page is down too.
 

@@ -92,7 +92,9 @@ The optional status page (`vps-stack monitor`) adds the `vps-stack-monitor`
 jail. Its password is long and random, so here too the jail does not stand
 between an attacker and the password; it stops a flood of login attempts,
 each of which costs the server a bcrypt computation. It bans inside Caddy, on
-the status page only, and never bans private or Docker addresses.
+the status page only, and never bans private or Docker addresses. IPv6
+clients are seen, and banned, with their real address because the `proxy`
+network has IPv6 ([architecture.md](architecture.md)).
 
 ## What stays on your side
 

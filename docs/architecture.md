@@ -40,6 +40,15 @@ Internet
 - **The `proxy` network** (named by `PROXY_NETWORK`) is created by
   provisioning and shared. Caddy joins it, and **only the web container** of
   every project.
+- **The `proxy` network has IPv6 enabled** (Docker picks a private /64 for
+  it). On an IPv4-only network Docker publishes Caddy's ports on the host's
+  IPv6 addresses through its userland proxy, and every IPv6 client reaches
+  Caddy as the network gateway (e.g. `172.18.0.1`): fail2ban cannot ban it
+  and the applications see the gateway in `X-Forwarded-For`. With IPv6 on
+  the network, ip6tables forwards the traffic and keeps the client address.
+  This relies on ip6tables being enabled in the Docker daemon, the default
+  since Docker Engine 27.0.1. A network created by an older `vps-stack` is
+  moved once with `sudo vps-stack proxy network-ipv6`; `verify` points at it.
 - **Internal networks** are defined by each project in its own Compose file.
   The database, cache and workers are only on those, so neither the proxy nor
   other projects have a route to them.
