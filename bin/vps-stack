@@ -32,7 +32,7 @@ Sites:
 
 Services:
   proxy          up | down | restart | reload | validate | status | logs
-  backup         init | run | setup
+  backup         init | run | list | snapshots | restore | export | setup
   monitor        optional status page: enable | disable | password | status
 
 Other:
