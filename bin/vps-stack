@@ -14,7 +14,7 @@ SCRIPTS_DIR="${REPO_ROOT}/scripts"
 
 usage() {
     cat <<USAGE
-vps-stack $(cat "${REPO_ROOT}/VERSION" 2>/dev/null || printf 'unknown version') (alpha)
+vps-stack $(cat "${REPO_ROOT}/VERSION" 2>/dev/null || printf 'unknown version')
 
 Usage: vps-stack <command> [arguments]
 
