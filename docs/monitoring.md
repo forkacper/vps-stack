@@ -52,8 +52,10 @@ proxy, ports exposed to the internet and the age of the last backup.
 A read-only page in the browser with the current state of the server: CPU,
 memory, swap, disk and load, and every container with its image, state,
 health check, uptime, restarts, CPU and memory. It refreshes every 10
-seconds. It is **disabled by default** and is meant for looking at the
-server, not for alerting: it has no history and sends no notifications.
+seconds, and shows the history of the last 24 hours or 7 days as charts: CPU
+(average and highest), memory, disk and load, and a 24-hour memory trend of
+every container. It is **disabled by default** and is meant for looking at
+the server, not for alerting: it sends no notifications.
 
 ```bash
 sudo vps-stack monitor enable status.example.com
@@ -64,6 +66,8 @@ command generates a login and a password and shows the password **once**:
 save it in your password manager. A new password:
 `sudo vps-stack monitor password`. The state:
 `sudo vps-stack monitor status`. Removal: `sudo vps-stack monitor disable`.
+After updating `vps-stack`, `sudo vps-stack monitor refresh` brings an
+enabled page in line with the new version; the password stays.
 
 How it works:
 
@@ -72,7 +76,13 @@ How it works:
   fixed list of fields only (name, image, state, health, start time,
   restarts, CPU, memory). **Environment variables, labels, mounts, ports,
   networks and logs are never read**, so they cannot reach the page.
-- Caddy serves the page and the data file at the domain. Nothing that runs
+- Every 5 minutes it also appends a history sample (CPU average and highest
+  over those 5 minutes, memory, swap, disk, load, and the memory of every
+  running container) to `/var/lib/vps-stack-monitor/history.jsonl`. The file
+  keeps 7 days (about 2,000 lines) and survives reboots; the page reads it as
+  `history.json`. A gap in the charts means the server or the collector was
+  down.
+- Caddy serves the page and the data files at the domain. Nothing that runs
   in a container gets access to Docker: the page has no backend and Caddy
   only reads a file.
 - Access requires the login and password (HTTPS, the password is stored only
