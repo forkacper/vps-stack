@@ -265,3 +265,67 @@ STATS=$'example-app-web|0.05%|10.86MiB / 128MiB|8.48%\nexample-app-db|1.20%|525.
         [[ "${MONITOR_STATS_FORMAT}" != *"${field}"* ]]
     done
 }
+
+# --- ban list updates -------------------------------------------------------
+
+@test "ban list: add keeps the list sorted and unique" {
+    run monitor_banlist_apply add "203.0.113.7" <<<$'198.51.100.2\n203.0.113.7\n2001:db8::1'
+    [ "$status" -eq 0 ]
+    [ "$output" = $'198.51.100.2\n2001:db8::1\n203.0.113.7' ]
+}
+
+@test "ban list: add to an empty list" {
+    run monitor_banlist_apply add "2001:DB8::1" </dev/null
+    [ "$status" -eq 0 ]
+    [ "$output" = "2001:db8::1" ]
+}
+
+@test "ban list: remove the address and nothing else" {
+    run monitor_banlist_apply remove "203.0.113.7" <<<$'198.51.100.2\n203.0.113.7'
+    [ "$status" -eq 0 ]
+    [ "$output" = "198.51.100.2" ]
+    run monitor_banlist_apply remove "203.0.113.7" <<<"203.0.113.7"
+    [ "$status" -eq 0 ]
+    [ "$output" = "" ]
+}
+
+@test "ban list: private and Docker addresses are never added" {
+    local ip
+    for ip in "172.17.0.1" "10.0.0.5" "127.0.0.1" "fd00::1" "::1"; do
+        run monitor_banlist_apply add "${ip}" <<<"198.51.100.2"
+        [ "$status" -eq 0 ]
+        [ "$output" = "198.51.100.2" ]
+    done
+}
+
+@test "ban list: an invalid address is refused" {
+    run monitor_banlist_apply add $'203.0.113.7\nrespond "pwned"' <<<"198.51.100.2"
+    [ "$status" -ne 0 ]
+    run monitor_banlist_apply add "203.0.113.0/24" </dev/null
+    [ "$status" -ne 0 ]
+    run monitor_banlist_apply drop "203.0.113.7" </dev/null
+    [ "$status" -ne 0 ]
+}
+
+@test "ban list: garbage lines in the stored list are dropped" {
+    run monitor_banlist_apply add "203.0.113.7" <<<$'# comment\n\nnot-an-ip\n198.51.100.2 }'
+    [ "$status" -eq 0 ]
+    [ "$output" = "203.0.113.7" ]
+}
+
+# --- fail2ban templates ------------------------------------------------------
+
+@test "fail2ban jail: rendered with the log file and extra ignored addresses" {
+    run render_template "${REPO_ROOT}/templates/fail2ban-monitor-jail.conf" \
+        "LOG_FILE=/var/log/vps-stack-monitor/access.log" "IGNOREIP= 198.51.100.2"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\nlogpath = /var/log/vps-stack-monitor/access.log\n'* ]]
+    [[ "$output" == *" fe80::/10 198.51.100.2" ]]
+}
+
+@test "fail2ban action: every call goes through vps-stack monitor" {
+    run render_template "${REPO_ROOT}/templates/fail2ban-monitor-action.conf" "VPS_STACK_BIN=/usr/local/bin/vps-stack"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\nactionban = /usr/local/bin/vps-stack monitor ban <ip>\n'* ]]
+    [[ "$output" == *$'\nactionunban = /usr/local/bin/vps-stack monitor unban <ip>'* ]]
+}

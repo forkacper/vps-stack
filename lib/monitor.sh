@@ -171,6 +171,36 @@ monitor_site_render() {
     render_template "${template}" "DOMAIN=${domain}" "USER=${user}" "HASH=${hash}"
 }
 
+# monitor_banlist_apply <add|remove> <ip>: read the current ban list (one
+# address per line) on stdin and print the new one, sorted and without
+# duplicates. Lines that are not valid addresses are dropped. An address
+# that is not public is never added: see ip_is_public.
+monitor_banlist_apply() {
+    local operation="$1" target line normalized
+    local -a kept=()
+    target="$(normalize_ip "${2:-}")" || return 1
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        normalized="$(normalize_ip "${line}" 2>/dev/null)" || continue
+        [[ "${normalized}" == "${target}" ]] && continue
+        kept+=("${normalized}")
+    done
+    case "${operation}" in
+        add)
+            if ip_is_public "${target}"; then
+                kept+=("${target}")
+            fi
+            ;;
+        remove) ;;
+        *)
+            printf 'monitor_banlist_apply: unknown operation %s\n' "${operation}" >&2
+            return 1
+            ;;
+    esac
+    if [[ "${#kept[@]}" -gt 0 ]]; then
+        printf '%s\n' "${kept[@]}" | LC_ALL=C sort -u
+    fi
+}
+
 # monitor_ban_snippet [ip...]: print the file imported at the top of the
 # status page route. Every address is validated; with no addresses the file
 # holds only its header, which Caddy accepts as empty.

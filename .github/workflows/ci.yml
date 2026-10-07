@@ -40,6 +40,21 @@ jobs:
           docker run --rm -v "${PWD}:/code:ro" --entrypoint sh bats/bats:1.14.0 \
             -c 'apk add --no-cache jq >/dev/null && bats tests/'
 
+      # The fixture holds Caddy access log lines: failed logins, requests
+      # without credentials, a successful login and two injection attempts
+      # that try to get 198.51.100.9 banned.
+      - name: fail2ban filter
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends fail2ban >/dev/null
+          fail2ban-regex --version
+          actual="$(fail2ban-regex -o ip tests/fixtures/monitor-access.log templates/fail2ban-monitor-filter.conf)"
+          expected="$(printf '%s\n' 203.0.113.10 203.0.113.10 203.0.113.10 203.0.113.50 2001:db8::5)"
+          if [[ "${actual}" != "${expected}" ]]; then
+            printf 'Expected:\n%s\nGot:\n%s\n' "${expected}" "${actual}" >&2
+            exit 1
+          fi
+
       - name: docker compose config
         env:
           ACME_EMAIL: admin@example.com
