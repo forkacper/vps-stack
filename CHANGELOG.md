@@ -9,6 +9,8 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-07
+
 ### Changed
 
 - **Breaking:** backups are per project. Every project has its own restic
@@ -18,7 +20,7 @@ incompatible way.
   configuration and certificates. The repositories live on the server by
   default. `/etc/vps-stack/restic.env` is no longer used: `backup` stops while
   it exists. Migration: "Moving from vps-stack 0.2" in
-  [docs/backup-restore.md](https://github.com/forkacper/vps-stack/blob/master/docs/backup-restore.md#moving-from-vps-stack-02).
+  [docs/backup-restore.md](https://github.com/forkacper/vps-stack/blob/v0.3.0/docs/backup-restore.md#moving-from-vps-stack-02).
 - The database hook example writes plain SQL instead of gzip, so restic can
   deduplicate consecutive dumps; it uses `mariadb-dump` or `mysqldump`,
   whichever the container has, and never leaves an unfinished dump behind.
@@ -94,6 +96,7 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/forkacper/vps-stack/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/forkacper/vps-stack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/forkacper/vps-stack/releases/tag/v0.1.0
