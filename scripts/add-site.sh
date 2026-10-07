@@ -37,46 +37,6 @@ need_value() {
     [[ $# -ge 2 ]] || die "Option $1 needs a value."
 }
 
-# refuse_duplicates <target file> <hosts...>: a host served by two site
-# blocks makes the whole Caddy config invalid.
-refuse_duplicates() {
-    local target="$1" file host existing
-    shift
-    for file in "${SITES_DIR}"/*.caddy; do
-        [[ -f "${file}" && "${file}" != "${target}" ]] || continue
-        existing="$(site_file_hosts "${file}")"
-        for host in "$@"; do
-            if grep -qxF -- "${host}" <<<"${existing}"; then
-                die "Domain ${host} is already configured in ${file}. Remove it first: vps-stack remove-site"
-            fi
-        done
-    done
-}
-
-check_dns() {
-    local -a args=()
-    local ip code=0
-    for ip in "${SERVER_IPS[@]+"${SERVER_IPS[@]}"}"; do
-        args+=(--server-ip "${ip}")
-    done
-    "${SCRIPT_DIR}/check-dns.sh" "${args[@]+"${args[@]}"}" "$@" || code=$?
-    case "${code}" in
-        0) return 0 ;;
-        3) die "Could not determine the public address of the server. Pass it with --server-ip <address> or use --no-dns-check." ;;
-        1) ;;
-        *) die "The DNS check failed (exit code ${code})." ;;
-    esac
-    log_warn "DNS does not point at this server. Caddy will try to obtain a certificate right away, and failed"
-    log_warn "attempts count against the Let's Encrypt rate limits. Fix the DNS records and wait for them to propagate."
-    if is_dry_run; then
-        return 0
-    fi
-    if [[ "${ASSUME_YES}" == "1" ]]; then
-        die "Refusing: DNS does not match. Use --no-dns-check if you are sure you want to continue."
-    fi
-    confirm "Add the site despite the DNS mismatch?" || die "Aborted. Nothing was changed."
-}
-
 check_upstream_container() {
     local container="$1" members
     if ! have_cmd docker || ! docker info >/dev/null 2>&1; then
@@ -171,7 +131,7 @@ main() {
     target="${SITES_DIR}/${domain}.caddy"
 
     # 2. Duplicates in other site files.
-    refuse_duplicates "${target}" "${hosts[@]}"
+    site_refuse_duplicates "${target}" "${hosts[@]}"
 
     # Existing file: identical is a no-op, different needs --force.
     if [[ -f "${target}" ]]; then
@@ -188,7 +148,7 @@ main() {
 
     # 3. DNS.
     if [[ "${dns_check}" == "1" ]]; then
-        check_dns "${hosts[@]}"
+        dns_check_or_confirm "${hosts[@]}"
     else
         log_warn "DNS check skipped (--no-dns-check)."
     fi

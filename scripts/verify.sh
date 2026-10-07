@@ -160,7 +160,7 @@ check_permissions() {
     if [[ -d "${HOOKS_DIR}" ]] && ! file_has_mode "${HOOKS_DIR}" 700; then
         problems="${problems:+${problems}, }${HOOKS_DIR} (700)"
     fi
-    for file in "${STACK_ENV_FILE}" "${PROXY_ENV_FILE}" "${RESTIC_ENV_FILE}" "${RESTIC_PASSWORD_DEFAULT_FILE}"; do
+    for file in "${STACK_ENV_FILE}" "${PROXY_ENV_FILE}" "${RESTIC_ENV_FILE}" "${RESTIC_PASSWORD_DEFAULT_FILE}" "${MONITOR_ENV_FILE}" "${MONITOR_SITE_FILE}"; do
         if [[ -e "${file}" ]] && ! file_has_mode "${file}" 600; then
             problems="${problems:+${problems}, }${file} (600)"
         fi
@@ -208,6 +208,32 @@ check_backup() {
     fi
 }
 
+# check_monitor: only when the optional status page is enabled.
+check_monitor() {
+    local status_file="${MONITOR_RUN_DIR}/status.json" age
+    [[ -f "${MONITOR_ENV_FILE}" ]] || return 0
+    if systemctl is-active --quiet vps-stack-monitor.service 2>/dev/null; then
+        report_add "OK" "Status page: collector" "running"
+    else
+        report_add "ERROR" "Status page: collector" "not running (journalctl -u vps-stack-monitor)"
+    fi
+    if [[ -f "${status_file}" ]]; then
+        age=$(($(date +%s) - $(date -r "${status_file}" +%s)))
+        if [[ "${age}" -le 60 ]]; then
+            report_add "OK" "Status page: data" "${age} s old"
+        else
+            report_add "WARN" "Status page: data" "${age} s old (written every 10 s)"
+        fi
+    else
+        report_add "WARN" "Status page: data" "${status_file} does not exist"
+    fi
+    if have_cmd fail2ban-client && fail2ban-client status vps-stack-monitor >/dev/null 2>&1; then
+        report_add "OK" "Status page: fail2ban" "jail vps-stack-monitor active"
+    else
+        report_add "WARN" "Status page: fail2ban" "jail vps-stack-monitor not running"
+    fi
+}
+
 main() {
     case "${1:-}" in
         -h | --help)
@@ -236,6 +262,7 @@ main() {
     check_ports
     check_permissions
     check_backup
+    check_monitor
 
     report_print
     if [[ "${REPORT_ERRORS}" -gt 0 ]]; then

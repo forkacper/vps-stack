@@ -60,12 +60,24 @@ jobs:
           ACME_EMAIL: admin@example.com
         run: |
           docker compose -f proxy/docker-compose.yml config --quiet
+          # With the status page mounts, as `vps-stack proxy` runs it.
+          docker compose -f proxy/docker-compose.yml -f proxy/docker-compose.monitor.yml config --quiet
           # The example refers to the project's own .env, which only exists
           # on a real deployment. One with APP_TAG is enough to check the
           # syntax (the image reference requires it).
           printf 'APP_TAG=example\n' >examples/.env
           docker compose -f examples/project-compose.yml.example config --quiet
           rm -f examples/.env
+
+      - name: systemd unit of the status page collector
+        run: |
+          unit_dir="$(mktemp -d)"
+          bash -c 'source lib/common.sh
+            render_template templates/vps-stack-monitor.service.tmpl \
+              "VPS_STACK_BIN=$1" "RUN_DIR=/run/vps-stack-monitor"' _ "${PWD}/bin/vps-stack" \
+            >"${unit_dir}/vps-stack-monitor.service"
+          cat "${unit_dir}/vps-stack-monitor.service"
+          systemd-analyze verify "${unit_dir}/vps-stack-monitor.service"
 
       - name: caddy validate
         run: |

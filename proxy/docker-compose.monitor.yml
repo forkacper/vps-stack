@@ -1,0 +1,13 @@
+# Added by `vps-stack proxy` on top of docker-compose.yml only while the
+# status page is enabled (vps-stack monitor enable). Do not start it by hand.
+#
+# - the page itself and the data written by the collector, read-only;
+# - the access log of the status page, read by the fail2ban jail.
+# Paths are relative to proxy/, the directory of the main compose file.
+
+services:
+  caddy:
+    volumes:
+      - ../monitor/www:/srv/vps-stack-monitor/www:ro
+      - ${MONITOR_RUN_DIR:-/run/vps-stack-monitor}:/srv/vps-stack-monitor/data:ro
+      - ${MONITOR_LOG_DIR:-/var/log/vps-stack-monitor}:/var/log/vps-stack-monitor

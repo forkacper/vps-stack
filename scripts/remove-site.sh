@@ -46,6 +46,9 @@ main() {
     require_etc_access write
 
     file="${SITES_DIR}/${domain}.caddy"
+    if [[ ! -f "${file}" && -f "${MONITOR_SITE_FILE}" ]] && grep -qxF -- "${domain}" <<<"$(site_file_hosts "${MONITOR_SITE_FILE}")"; then
+        die "${domain} serves the status page. To remove it: vps-stack monitor disable"
+    fi
     [[ -f "${file}" ]] || die "File ${file} does not exist. To list sites: vps-stack list-sites"
 
     removed_dir="${SITES_DIR}/.removed"

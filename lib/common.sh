@@ -29,6 +29,16 @@ BACKUP_LOG_FILE="${VPS_STACK_BACKUP_LOG:-/var/log/vps-stack-backup.log}"
 CADDY_CONTAINER="caddy"
 PROXY_PROJECT_NAME="vps-stack-proxy"
 
+# Status page (vps-stack monitor). Present only while it is enabled.
+MONITOR_ENV_FILE="${ETC_DIR}/monitor.env"
+MONITOR_BAN_LIST="${ETC_DIR}/monitor-banned.list"
+MONITOR_SITE_FILE="${SITES_DIR}/_monitor.caddy"
+# Imported by the status page site file; deliberately not *.caddy, so the
+# `import sites/*.caddy` of the Caddyfile does not load it on its own.
+MONITOR_BAN_SNIPPET="${SITES_DIR}/.monitor-banned"
+MONITOR_RUN_DIR="${VPS_STACK_MONITOR_RUN_DIR:-/run/vps-stack-monitor}"
+MONITOR_LOG_DIR="${VPS_STACK_MONITOR_LOG_DIR:-/var/log/vps-stack-monitor}"
+
 DRY_RUN="${DRY_RUN:-0}"
 ASSUME_YES="${ASSUME_YES:-0}"
 
@@ -451,4 +461,52 @@ site_file_hosts() {
             *) ;;
         esac
     done <"$1"
+}
+
+# site_refuse_duplicates <target file> <hosts...>: a host served by two site
+# blocks makes the whole Caddy config invalid.
+site_refuse_duplicates() {
+    local target="$1" file host existing hint
+    shift
+    for file in "${SITES_DIR}"/*.caddy; do
+        [[ -f "${file}" && "${file}" != "${target}" ]] || continue
+        existing="$(site_file_hosts "${file}")"
+        for host in "$@"; do
+            if grep -qxF -- "${host}" <<<"${existing}"; then
+                hint="vps-stack remove-site ${host}"
+                if [[ "${file}" == "${MONITOR_SITE_FILE}" ]]; then
+                    hint="vps-stack monitor disable"
+                fi
+                die "Domain ${host} is already configured in ${file}. Remove it first: ${hint}"
+            fi
+        done
+    done
+}
+
+# dns_check_or_confirm <hosts...>: check that the hosts point at this server
+# (scripts/check-dns.sh, with --server-ip taken from the SERVER_IPS array when
+# the caller set it). A mismatch needs a confirmation; with --yes it is a
+# refusal, so that only an explicit --no-dns-check skips the check.
+dns_check_or_confirm() {
+    local -a args=()
+    local ip code=0
+    for ip in "${SERVER_IPS[@]+"${SERVER_IPS[@]}"}"; do
+        args+=(--server-ip "${ip}")
+    done
+    "${REPO_ROOT}/scripts/check-dns.sh" "${args[@]+"${args[@]}"}" "$@" || code=$?
+    case "${code}" in
+        0) return 0 ;;
+        3) die "Could not determine the public address of the server. Pass it with --server-ip <address> or use --no-dns-check." ;;
+        1) ;;
+        *) die "The DNS check failed (exit code ${code})." ;;
+    esac
+    log_warn "DNS does not point at this server. Caddy will try to obtain a certificate right away, and failed"
+    log_warn "attempts count against the Let's Encrypt rate limits. Fix the DNS records and wait for them to propagate."
+    if is_dry_run; then
+        return 0
+    fi
+    if [[ "${ASSUME_YES}" == "1" ]]; then
+        die "Refusing: DNS does not match. Use --no-dns-check if you are sure you want to continue."
+    fi
+    confirm "Continue despite the DNS mismatch?" || die "Aborted. Nothing was changed."
 }

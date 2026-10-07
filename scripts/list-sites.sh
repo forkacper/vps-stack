@@ -78,6 +78,11 @@ main() {
     for file in "${SITES_DIR}"/*.caddy; do
         [[ -f "${file}" ]] || continue
         parse_site "${file}"
+        if [[ "${file}" == "${MONITOR_SITE_FILE}" ]]; then
+            printf '%-32s %-28s %-10s %-28s %s\n' "${SITE_DOMAIN:-?}" "(status page)" "-" "-" "-"
+            count=$((count + 1))
+            continue
+        fi
         if [[ -z "${running}" ]]; then
             state="?"
         elif grep -qxF -- "${SITE_UPSTREAM%%:*}" <<<"${running}"; then

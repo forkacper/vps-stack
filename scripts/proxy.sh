@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common.sh"
 
 COMPOSE_FILE="${REPO_ROOT}/proxy/docker-compose.yml"
+# Mounts of the status page; used only while it is enabled.
+COMPOSE_MONITOR_FILE="${REPO_ROOT}/proxy/docker-compose.monitor.yml"
 CADDYFILE_IN_CONTAINER="/etc/caddy/Caddyfile"
 
 usage() {
@@ -26,7 +28,11 @@ USAGE
 }
 
 compose() {
-    docker compose -p "${PROXY_PROJECT_NAME}" --env-file "${PROXY_ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+    local -a files=(-f "${COMPOSE_FILE}")
+    if [[ -f "${MONITOR_ENV_FILE}" ]]; then
+        files+=(-f "${COMPOSE_MONITOR_FILE}")
+    fi
+    docker compose -p "${PROXY_PROJECT_NAME}" --env-file "${PROXY_ENV_FILE}" "${files[@]}" "$@"
 }
 
 prepare() {
@@ -37,8 +43,8 @@ prepare() {
     load_env_file "${PROXY_ENV_FILE}"
     [[ -n "${ACME_EMAIL}" ]] || die "ACME_EMAIL in ${PROXY_ENV_FILE} is empty. Fill it in and try again."
     stack_config_load "${STACK_ENV_FILE}"
-    # Read by docker compose when it interpolates proxy/docker-compose.yml.
-    export SITES_DIR CADDY_DATA_DIR PROXY_NETWORK
+    # Read by docker compose when it interpolates the compose files.
+    export SITES_DIR CADDY_DATA_DIR PROXY_NETWORK MONITOR_RUN_DIR MONITOR_LOG_DIR
 }
 
 ensure_network() {
