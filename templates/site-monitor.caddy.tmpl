@@ -25,8 +25,9 @@
         basic_auth {
             {{USER}} {{HASH}}
         }
-        # 3. Content: the data file written by the collector and the page.
-        handle /status.json {
+        # 3. Content: the data files written by the collector and the page.
+        @data path /status.json /history.json
+        handle @data {
             root * /srv/vps-stack-monitor/data
             file_server
         }

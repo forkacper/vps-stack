@@ -217,3 +217,75 @@ monitor_ban_snippet() {
         printf 'abort @vps_stack_banned\n'
     fi
 }
+
+# --- history ----------------------------------------------------------------
+
+# monitor_history_sample <epoch> <cpu avg> <cpu max> <host json> <containers json>
+# One line of history: averages over the sampling window for CPU, the values
+# at its end for the rest, and the memory of every running container. Built
+# field by field, like status.json: nothing else survives.
+monitor_history_sample() {
+    jq -cn \
+        --arg t "$1" \
+        --arg cpu "$2" \
+        --arg cpu_max "$3" \
+        --argjson host "$4" \
+        --argjson containers "$5" '
+        def num: if . == "" then null else (tonumber? // null) end;
+        {
+            t: ($t | tonumber),
+            cpu: ($cpu | num),
+            cpu_max: ($cpu_max | num),
+            load: ($host.load[0] // null),
+            mem: ($host.memory.used // null),
+            mem_total: ($host.memory.total // null),
+            swap: ($host.swap.used // null),
+            swap_total: ($host.swap.total // null),
+            disk: ($host.disk.used // null),
+            disk_total: ($host.disk.total // null),
+            containers: ([$containers[]
+                | select(.state == "running" and (.memory_used | type) == "number")
+                | {key: (.name | tostring), value: .memory_used}] | from_entries)
+        }'
+}
+
+# monitor_history_trim <file> <samples>: keep the newest <samples> lines.
+monitor_history_trim() {
+    local file="$1" keep="$2" tmp
+    [[ -f "${file}" ]] || return 0
+    if [[ "$(wc -l <"${file}")" -le "${keep}" ]]; then
+        return 0
+    fi
+    tmp="$(mktemp "${file}.XXXXXX")" || return 1
+    if ! tail -n "${keep}" "${file}" >"${tmp}" || ! mv -f "${tmp}" "${file}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
+}
+
+# monitor_history_json <file> <interval seconds>: the history.json served to
+# the page. Lines that are not valid samples (e.g. cut by a power loss) are
+# skipped; a missing file gives an empty history.
+monitor_history_json() {
+    local file="$1" interval="$2"
+    if [[ ! -f "${file}" ]]; then
+        jq -n --arg interval "${interval}" '{version: 1, interval_seconds: ($interval | tonumber), samples: []}'
+        return 0
+    fi
+    jq -R -n --arg interval "${interval}" '
+        {
+            version: 1,
+            interval_seconds: ($interval | tonumber),
+            samples: [inputs | (fromjson? // empty) | select(type == "object" and (.t | type) == "number")]
+        }' "${file}"
+}
+
+# monitor_max <a> <b>: the larger of two decimal numbers; an empty value
+# counts as missing.
+monitor_max() {
+    LC_ALL=C awk -v a="$1" -v b="$2" 'BEGIN {
+        if (a == "") { print b; exit }
+        if (b == "") { print a; exit }
+        print ((a + 0 >= b + 0) ? a : b)
+    }'
+}
