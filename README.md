@@ -209,6 +209,7 @@ after changes in `proxy/` run `sudo vps-stack proxy restart`.
 ## Documentation
 
 - [docs/quickstart.md](docs/quickstart.md): the first run, step by step
+- [docs/ssh-keys.md](docs/ssh-keys.md): creating an SSH key and getting it onto the server
 - [docs/architecture.md](docs/architecture.md): networks, directories, what runs where
 - [docs/security-model.md](docs/security-model.md): what it protects against and what it does not
 - [docs/adding-sites.md](docs/adding-sites.md): domains, DNS, certificates

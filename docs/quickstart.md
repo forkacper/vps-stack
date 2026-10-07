@@ -8,7 +8,8 @@ away.**
 
 1. Order a VPS with Ubuntu 24.04 or 26.04 (for example 2 vCPU, 4 GB RAM, 40 GB
    disk). Provide your **SSH public key** when ordering, if the provider
-   allows it.
+   allows it. If you do not have a key yet, create one first:
+   [ssh-keys.md](ssh-keys.md).
 2. Enable **two-factor authentication (2FA)** on your provider account.
    Whoever takes over that account takes over the server, regardless of
    anything `vps-stack` does.
@@ -49,6 +50,9 @@ scp ~/.ssh/id_ed25519.pub root@<server-address>:/root/admin.pub
 # In stack.env:
 ADMIN_SSH_PUBKEY_FILE=/root/admin.pub
 ```
+
+Creating a key, copying it and testing it are described step by step in
+[ssh-keys.md](ssh-keys.md).
 
 It is also worth putting your IP address in `FAIL2BAN_IGNOREIP`. The other
 values have sensible defaults and are described in the file.
