@@ -117,10 +117,10 @@ cd /opt/vps-stack
 sudo git checkout "$(sudo git tag --list 'v*' --sort=-v:refname | head -n 1)"
 
 # Read the scripts before you run them. Then:
-cp config/stack.env.example ./stack.env      # fill in ADMIN_SSH_PUBKEY_FILE
-cp config/proxy.env.example ./proxy.env      # fill in ACME_EMAIL
-sudo ./bin/vps-stack provision --config ./stack.env --dry-run   # preview
-sudo ./bin/vps-stack provision --config ./stack.env
+cp config/stack.env.example ~/stack.env      # fill in ADMIN_SSH_PUBKEY_FILE
+cp config/proxy.env.example ~/proxy.env      # fill in ACME_EMAIL
+sudo ./bin/vps-stack provision --config ~/stack.env --dry-run   # preview
+sudo ./bin/vps-stack provision --config ~/stack.env
 sudo vps-stack verify
 ```
 

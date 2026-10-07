@@ -62,14 +62,14 @@ database.
 
 ### 1. Dry run
 
-- [ ] `sudo ./bin/vps-stack provision --config ./stack.env --dry-run` finishes
+- [ ] `sudo ./bin/vps-stack provision --config ~/stack.env --dry-run` finishes
       without an error.
 - [ ] After the dry run neither `/etc/vps-stack` nor
       `/etc/ssh/sshd_config.d/00-hardening.conf` exists.
 
 ### 2. Provisioning
 
-- [ ] `sudo ./bin/vps-stack provision --config ./stack.env` goes through all
+- [ ] `sudo ./bin/vps-stack provision --config ~/stack.env` goes through all
       13 steps.
 - [ ] An answer other than `YES` to the second session question ends the
       script without changes to sshd (check this in a separate run).

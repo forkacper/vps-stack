@@ -41,23 +41,26 @@ Read `scripts/provision.sh` before you run it. It runs as root.
 
 ## 3. Configuration
 
+The clone belongs to root, so prepare the configuration in your home
+directory (provisioning copies it to `/etc/vps-stack/`):
+
 ```bash
-cp config/stack.env.example ./stack.env
-cp config/proxy.env.example ./proxy.env
+cp /opt/vps-stack/config/stack.env.example ~/stack.env
+cp /opt/vps-stack/config/proxy.env.example ~/proxy.env
 ```
 
-In `stack.env` you have to set one thing: `ADMIN_SSH_PUBKEY_FILE`, the path to
-a file with your public key **on the server**. The simplest way:
+In `stack.env` you have to set one thing: `ADMIN_SSH_PUBKEY_FILE`, the full
+path to a file with your public key **on the server**:
 
 ```bash
 # On your computer:
-scp ~/.ssh/id_ed25519.pub root@<server-address>:/root/admin.pub
-# In stack.env:
-ADMIN_SSH_PUBKEY_FILE=/root/admin.pub
+scp ~/.ssh/example-vps.pub example-vps:admin.pub
+# In ~/stack.env (the home directory of the account you log in with):
+ADMIN_SSH_PUBKEY_FILE=/home/ubuntu/admin.pub
 ```
 
-Creating a key, copying it and testing it are described step by step in
-[ssh-keys.md](ssh-keys.md).
+Creating a key, logging in with it, copying it and testing it are described
+step by step in [ssh-keys.md](ssh-keys.md).
 
 It is also worth putting your IP address in `FAIL2BAN_IGNOREIP`. The other
 values have sensible defaults and are described in the file.
@@ -73,13 +76,13 @@ changed later with a separate command.
 First a preview that changes nothing:
 
 ```bash
-sudo ./bin/vps-stack provision --config ./stack.env --dry-run
+sudo ./bin/vps-stack provision --config ~/stack.env --dry-run
 ```
 
 Then the real run:
 
 ```bash
-sudo ./bin/vps-stack provision --config ./stack.env
+sudo ./bin/vps-stack provision --config ~/stack.env
 ```
 
 The script goes through 13 steps and prints `[n/13]` at each of them. At the
@@ -91,7 +94,8 @@ you:
    `sudo` still asks for a password, so one has to be set.
 2. **Second SSH session test.** Before the script disables passwords and root
    login, it asks you to type `YES`. **Do not type it by reflex.** Open a
-   second terminal and check:
+   second terminal and check, as the new administrator (with the entry
+   from [ssh-keys.md](ssh-keys.md), step 7: `User admin`):
 
    ```bash
    ssh admin@<server-address>
