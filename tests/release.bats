@@ -76,3 +76,14 @@ EOF
     [ "$status" -eq 0 ]
     grep -qx '## \[Unreleased\]' "${REPO_ROOT}/CHANGELOG.md"
 }
+
+@test "release notes: relative links are refused, absolute ones and anchors pass" {
+    write_changelog
+    printf '## [0.3.0] - 2026-10-08\n\n- See [the guide](docs/releasing.md).\n' >>"${CHANGELOG}"
+    run "${NOTES}" 0.3.0 "${CHANGELOG}"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"](docs/releasing.md)"* ]]
+    printf '## [0.4.0] - 2026-10-09\n\n- See [the guide](https://example.com/docs/releasing.md), [below](#notes) and [mail](mailto:admin@example.com).\n' >>"${CHANGELOG}"
+    run "${NOTES}" 0.4.0 "${CHANGELOG}"
+    [ "$status" -eq 0 ]
+}

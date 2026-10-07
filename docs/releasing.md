@@ -64,7 +64,11 @@ points at the same code.
    - `CHANGELOG.md`: rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`,
      add a new empty `## [Unreleased]` above it, update the links at the
      bottom of the file;
-   - check the notes: `.github/scripts/release-notes.sh X.Y.Z`.
+   - check the notes: `.github/scripts/release-notes.sh X.Y.Z`. Links in the
+     changelog are absolute and point at the tag, e.g.
+     `https://github.com/forkacper/vps-stack/blob/vX.Y.Z/docs/releasing.md`:
+     on the release page a relative link leads nowhere, and the script
+     refuses it.
 4. Pull request, CI green, merge into `master`.
 5. Tag the merged commit and push the tag:
 
