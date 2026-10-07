@@ -9,6 +9,14 @@ incompatible way.
 
 ## [Unreleased]
 
+### Fixed
+
+- `provision` (and every other apt call) failed with "Could not get lock
+  /var/lib/apt/lists/lock" when automatic updates ran apt at the same time,
+  which is common on a fresh server shortly after boot. apt calls now wait
+  for the apt and dpkg locks, up to 10 minutes, printing that apt is busy;
+  after that they fail with the command that shows the process holding them.
+
 ## [0.4.1] - 2026-10-07
 
 ### Fixed
