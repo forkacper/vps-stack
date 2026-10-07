@@ -14,6 +14,9 @@ const $ = (id) => document.getElementById(id);
 
 let lastData = null;
 let lastError = null;
+// Set after a 401: the browser's stored login is no longer valid.
+let stopped = false;
+const timers = [];
 let history = null;
 let historyRange = 86400;
 
@@ -214,6 +217,9 @@ function renderContainers(containers, generatedAt) {
 }
 
 function renderFreshness() {
+    if (stopped) {
+        return;
+    }
     const freshness = $("freshness");
     const banner = $("banner");
 
@@ -428,9 +434,34 @@ function containerSparkline(name) {
     return wrapper;
 }
 
+// stopPolling: after a 401 the login the browser keeps is no longer valid,
+// usually because the password was changed. Polling on would send it every
+// few seconds; each attempt counts as a failed login and fail2ban would ban
+// this address. So the page stops and asks for a reload.
+function stopPolling() {
+    if (stopped) {
+        return;
+    }
+    stopped = true;
+    timers.forEach((timer) => clearInterval(timer));
+    const freshness = $("freshness");
+    freshness.dataset.state = "error";
+    freshness.textContent = "Stopped";
+    const banner = $("banner");
+    banner.hidden = false;
+    banner.textContent = "The login is no longer valid (was the password changed?). The page stopped refreshing: reload it and log in again.";
+}
+
 async function refreshHistory() {
+    if (stopped) {
+        return;
+    }
     try {
         const response = await fetch("history.json", { cache: "no-store", credentials: "same-origin" });
+        if (response.status === 401) {
+            stopPolling();
+            return;
+        }
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
@@ -456,8 +487,15 @@ for (const button of document.querySelectorAll("[data-range]")) {
 }
 
 async function refresh() {
+    if (stopped) {
+        return;
+    }
     try {
         const response = await fetch("status.json", { cache: "no-store", credentials: "same-origin" });
+        if (response.status === 401) {
+            stopPolling();
+            return;
+        }
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
@@ -474,10 +512,10 @@ async function refresh() {
 
 refresh();
 refreshHistory();
-setInterval(refresh, REFRESH_MS);
-setInterval(refreshHistory, HISTORY_REFRESH_MS);
+timers.push(setInterval(refresh, REFRESH_MS));
+timers.push(setInterval(refreshHistory, HISTORY_REFRESH_MS));
 // The age label keeps counting between refreshes.
-setInterval(renderFreshness, 1000);
+timers.push(setInterval(renderFreshness, 1000));
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
         refresh();

@@ -67,7 +67,9 @@ save it in your password manager. A new password:
 `sudo vps-stack monitor password`. The state:
 `sudo vps-stack monitor status`. Removal: `sudo vps-stack monitor disable`.
 After updating `vps-stack`, `sudo vps-stack monitor refresh` brings an
-enabled page in line with the new version; the password stays.
+enabled page in line with the new version; the password stays. After a password change, an open page stops refreshing and asks to
+be reloaded: it never keeps sending the old password in the background,
+which fail2ban would count as failed logins.
 
 How it works:
 
