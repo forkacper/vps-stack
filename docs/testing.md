@@ -190,9 +190,10 @@ With a test domain pointing at the server (`ACME_CA` set to staging):
       passwords from another public address: that address gets a closed
       connection on the status page and still reaches the other sites; after
       `sudo vps-stack monitor unban <ip>` it gets the login prompt again.
-- [ ] A request over IPv6: note which address the access log in
-      `/var/log/vps-stack-monitor/access.log` records (the real one or a
-      Docker gateway).
+- [ ] A request over IPv6 (e.g. `curl -6` from the server itself): the access
+      log in `/var/log/vps-stack-monitor/access.log` records the real IPv6
+      address, not a Docker gateway such as `172.18.0.1`; `verify` shows
+      "Docker: network proxy: IPv6 enabled".
 - [ ] After a reboot the page works again without any command.
 - [ ] `sudo vps-stack verify` shows the three status page rows as OK.
 - [ ] After 15 minutes the history charts show 3 samples; after a reboot
