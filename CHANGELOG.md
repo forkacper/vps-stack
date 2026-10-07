@@ -15,9 +15,9 @@ incompatible way.
 
 - Release process: version numbers without pre-release labels, tags
   `vX.Y.Z` with GitHub releases created by `.github/workflows/release.yml`,
-  a version and changelog check in CI ([docs/releasing.md](docs/releasing.md)).
+  a version and changelog check in CI ([docs/releasing.md](https://github.com/forkacper/vps-stack/blob/v0.2.0/docs/releasing.md)).
   The installation instructions check out the newest release.
-- [docs/ssh-keys.md](docs/ssh-keys.md): creating an SSH key and getting it
+- [docs/ssh-keys.md](https://github.com/forkacper/vps-stack/blob/v0.2.0/docs/ssh-keys.md): creating an SSH key and getting it
   onto the server.
 - Example GitHub Actions workflow for projects
   (`examples/project-build-workflow.yml.example`): tests, image build and

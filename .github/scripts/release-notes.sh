@@ -33,4 +33,11 @@ if [[ -z "${notes}" ]]; then
     printf 'No notes for %s in %s (expected a "## [%s]" section).\n' "${version}" "${changelog}" "${version}" >&2
     exit 1
 fi
+# GitHub resolves relative links in release notes against the release page,
+# where they lead nowhere. Links must be absolute (or anchors).
+relative="$(grep -oE '\]\([^)#][^)]*\)' <<<"${notes}" | grep -vE '^\]\((https?|mailto):' || true)"
+if [[ -n "${relative}" ]]; then
+    printf 'Relative links in the notes of %s; use absolute URLs:\n%s\n' "${version}" "${relative}" >&2
+    exit 1
+fi
 printf '%s\n' "${notes}"
