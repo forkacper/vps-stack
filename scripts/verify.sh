@@ -270,6 +270,11 @@ check_monitor() {
     else
         report_add "WARN" "Status page: data" "${status_file} does not exist"
     fi
+    if [[ -f "${MONITOR_RUN_DIR}/history.json" ]]; then
+        report_add "OK" "Status page: history" "published"
+    else
+        report_add "WARN" "Status page: history" "no history.json (vps-stack monitor refresh)"
+    fi
     if have_cmd fail2ban-client && fail2ban-client status vps-stack-monitor >/dev/null 2>&1; then
         report_add "OK" "Status page: fail2ban" "jail vps-stack-monitor active"
     else

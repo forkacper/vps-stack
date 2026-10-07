@@ -42,6 +42,8 @@ MONITOR_SITE_FILE="${SITES_DIR}/_monitor.caddy"
 MONITOR_BAN_SNIPPET="${SITES_DIR}/.monitor-banned"
 MONITOR_RUN_DIR="${VPS_STACK_MONITOR_RUN_DIR:-/run/vps-stack-monitor}"
 MONITOR_LOG_DIR="${VPS_STACK_MONITOR_LOG_DIR:-/var/log/vps-stack-monitor}"
+# History of the status page: survives reboots, unlike the runtime directory.
+MONITOR_STATE_DIR="${VPS_STACK_MONITOR_STATE_DIR:-/var/lib/vps-stack-monitor}"
 
 DRY_RUN="${DRY_RUN:-0}"
 ASSUME_YES="${ASSUME_YES:-0}"

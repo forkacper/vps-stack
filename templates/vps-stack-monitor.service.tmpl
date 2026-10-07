@@ -1,6 +1,7 @@
 # Managed by vps-stack (monitor). Manual edits are overwritten.
-# Collector of the status page: every 10 seconds it writes status.json with
-# the fields listed in lib/monitor.sh, nothing else.
+# Collector of the status page: every 10 seconds it writes status.json, and
+# every 5 minutes a history sample, with the fields listed in lib/monitor.sh,
+# nothing else.
 [Unit]
 Description=vps-stack status page collector
 After=docker.service
@@ -12,13 +13,14 @@ ExecStart={{VPS_STACK_BIN}} monitor collect
 Restart=always
 RestartSec=10
 Nice=10
-# It reads /proc and asks Docker for a fixed set of fields; the only place
-# it writes to is its runtime directory, which Caddy mounts read-only.
+# It reads /proc and asks Docker for a fixed set of fields; it writes only to
+# its runtime directory, which Caddy mounts read-only, and to the directory
+# holding the history.
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=yes
-ReadWritePaths={{RUN_DIR}} -/run/docker.sock
+ReadWritePaths={{RUN_DIR}} {{STATE_DIR}} -/run/docker.sock
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

@@ -329,3 +329,56 @@ STATS=$'example-app-web|0.05%|10.86MiB / 128MiB|8.48%\nexample-app-db|1.20%|525.
     [[ "$output" == *$'\nactionban = /usr/local/bin/vps-stack monitor ban <ip>\n'* ]]
     [[ "$output" == *$'\nactionunban = /usr/local/bin/vps-stack monitor unban <ip>'* ]]
 }
+
+# --- history ----------------------------------------------------------------
+
+@test "history sample: only the allowed fields, running containers only" {
+    local host containers sample
+    host="$(monitor_host_json "${PROC}" "vps-1" 2 "25.0" 42949672960 10737418240 false)"
+    containers="$(monitor_containers_json "${INSPECT}" "${STATS}")"
+    sample="$(monitor_history_sample 1791400800 "12.5" "80.0" "${host}" "${containers}")"
+    [ "$(jq -c 'keys' <<<"${sample}")" = '["containers","cpu","cpu_max","disk","disk_total","load","mem","mem_total","swap","swap_total","t"]' ]
+    [ "$(jq -c '[.t, .cpu, .cpu_max, .mem, .disk]' <<<"${sample}")" = "[1791400800,12.5,80.0,2055989248,10737418240]" ]
+    [ "$(jq -c '.containers' <<<"${sample}")" = '{"example-app-db":551236403,"example-app-web":11387535}' ]
+    [ "$(wc -l <<<"${sample}")" -eq 1 ]
+}
+
+@test "history sample: the first window has no CPU values" {
+    local host sample
+    host="$(monitor_host_json "${PROC}" "vps-1" 2 "" 1 1 false)"
+    sample="$(monitor_history_sample 1791400800 "" "" "${host}" "[]")"
+    [ "$(jq -c '[.cpu, .cpu_max, .containers]' <<<"${sample}")" = "[null,null,{}]" ]
+}
+
+@test "history trim: keeps the newest lines" {
+    local file="${BATS_TEST_TMPDIR}/history.jsonl"
+    seq 1 10 >"${file}"
+    monitor_history_trim "${file}" 4
+    [ "$(cat "${file}")" = $'7\n8\n9\n10' ]
+    monitor_history_trim "${file}" 4
+    [ "$(wc -l <"${file}")" -eq 4 ]
+    run monitor_history_trim "${BATS_TEST_TMPDIR}/missing" 4
+    [ "$status" -eq 0 ]
+}
+
+@test "history json: valid samples only, a cut last line is skipped" {
+    local file="${BATS_TEST_TMPDIR}/history.jsonl"
+    printf '%s\n' '{"t":1,"cpu":1}' 'garbage' '[1,2]' '{"cpu":5}' '{"t":2,"cpu":2}' '{"t":3,"cp' >"${file}"
+    run monitor_history_json "${file}" 300
+    [ "$status" -eq 0 ]
+    [ "$(jq -c '[.version, .interval_seconds, [.samples[].t]]' <<<"${output}")" = "[1,300,[1,2]]" ]
+}
+
+@test "history json: no file yet is an empty history" {
+    run monitor_history_json "${BATS_TEST_TMPDIR}/missing" 300
+    [ "$status" -eq 0 ]
+    [ "$(jq -c '.samples' <<<"${output}")" = "[]" ]
+}
+
+@test "monitor_max: decimals, and an empty value counts as missing" {
+    [ "$(monitor_max 12.5 9.75)" = "12.5" ]
+    [ "$(monitor_max 2.0 10.1)" = "10.1" ]
+    [ "$(monitor_max "" 3.0)" = "3.0" ]
+    [ "$(monitor_max 4.0 "")" = "4.0" ]
+    [ "$(LC_ALL=pl_PL.UTF-8 monitor_max 1.5 1.25)" = "1.5" ]
+}

@@ -20,6 +20,12 @@ F2B_FILTER_FILE="/etc/fail2ban/filter.d/vps-stack-monitor.conf"
 F2B_ACTION_FILE="/etc/fail2ban/action.d/vps-stack-monitor.conf"
 F2B_JAIL_FILE="/etc/fail2ban/jail.d/vps-stack-monitor.local"
 STATUS_FILE="${MONITOR_RUN_DIR}/status.json"
+# History: one sample every HISTORY_INTERVAL seconds, kept for 7 days in a
+# file that survives reboots, published for the page as history.json.
+HISTORY_FILE="${MONITOR_STATE_DIR}/history.jsonl"
+HISTORY_JSON="${MONITOR_RUN_DIR}/history.json"
+HISTORY_INTERVAL="${VPS_STACK_MONITOR_HISTORY_INTERVAL:-300}"
+HISTORY_SAMPLES=2016
 LOG_FILE="${MONITOR_LOG_DIR}/access.log"
 BAN_LOCK_FILE="${VPS_STACK_MONITOR_BAN_LOCK:-/run/lock/vps-stack-monitor-ban.lock}"
 VPS_STACK_BIN="${REPO_ROOT}/bin/vps-stack"
@@ -47,6 +53,8 @@ Commands:
   disable           remove the status page, its collector and fail2ban jail
                     (--dry-run, --yes)
   password          generate a new password (--yes)
+  refresh           after updating vps-stack: update the site file and the
+                    collector of an enabled status page, keeping the password
   status            state of the status page, collector and bans
 
 Used by the system:
@@ -130,6 +138,47 @@ CREDENTIALS
 
 PREV_CPU_TOTAL=""
 PREV_CPU_IDLE=""
+# 1 in the collector loop; `collect --once` only refreshes the current state.
+COLLECT_HISTORY=0
+# The current history window: its start, the CPU counters at its start and
+# the highest 10-second CPU value seen in it.
+WINDOW_START=""
+WINDOW_CPU_TOTAL=""
+WINDOW_CPU_IDLE=""
+WINDOW_CPU_MAX=""
+
+# publish_history: write history.json for the page from the history file.
+publish_history() {
+    local json tmp
+    json="$(monitor_history_json "${HISTORY_FILE}" "${HISTORY_INTERVAL}")" || return 1
+    tmp="$(mktemp "${MONITOR_RUN_DIR}/.history.json.XXXXXX")" || return 1
+    if ! printf '%s\n' "${json}" >"${tmp}" || ! chmod 644 "${tmp}" || ! mv -f "${tmp}" "${HISTORY_JSON}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
+}
+
+# record_history <total> <idle> <host json> <containers json>: when the
+# window is over, append one sample, keep 7 days and publish.
+record_history() {
+    local total="$1" idle="$2" host="$3" containers="$4" avg sample
+    if [[ -z "${WINDOW_START}" ]]; then
+        WINDOW_START="${SECONDS}"
+        WINDOW_CPU_TOTAL="${total}"
+        WINDOW_CPU_IDLE="${idle}"
+        return 0
+    fi
+    [[ $((SECONDS - WINDOW_START)) -ge "${HISTORY_INTERVAL}" ]] || return 0
+    avg="$(monitor_cpu_percent "${WINDOW_CPU_TOTAL}" "${WINDOW_CPU_IDLE}" "${total}" "${idle}")"
+    sample="$(monitor_history_sample "$(date +%s)" "${avg}" "${WINDOW_CPU_MAX}" "${host}" "${containers}")" || return 1
+    WINDOW_START="${SECONDS}"
+    WINDOW_CPU_TOTAL="${total}"
+    WINDOW_CPU_IDLE="${idle}"
+    WINDOW_CPU_MAX=""
+    printf '%s\n' "${sample}" >>"${HISTORY_FILE}" || return 1
+    monitor_history_trim "${HISTORY_FILE}" "${HISTORY_SAMPLES}" || return 1
+    publish_history
+}
 
 # collect_once: write status.json. Every step is checked explicitly: the
 # loop calls this in a context where `set -e` does not apply.
@@ -148,6 +197,7 @@ collect_once() {
     cpu="$(monitor_cpu_percent "${PREV_CPU_TOTAL}" "${PREV_CPU_IDLE}" "${total}" "${idle}")"
     PREV_CPU_TOTAL="${total}"
     PREV_CPU_IDLE="${idle}"
+    WINDOW_CPU_MAX="$(monitor_max "${WINDOW_CPU_MAX}" "${cpu}")"
 
     read -r disk_total disk_used < <(df -P -B1 / | awk 'NR == 2 { print $2, $3 }') || return 1
     [[ -e /var/run/reboot-required ]] && reboot=true
@@ -174,6 +224,9 @@ collect_once() {
         rm -f "${tmp}"
         return 1
     fi
+    if [[ "${COLLECT_HISTORY}" == "1" ]]; then
+        record_history "${total}" "${idle}" "${host}" "${containers}" || return 1
+    fi
 }
 
 cmd_collect() {
@@ -186,11 +239,16 @@ cmd_collect() {
     require_root
     require_cmd docker jq df nproc
     [[ -d "${MONITOR_RUN_DIR}" ]] || die "${MONITOR_RUN_DIR} does not exist. Enable the status page: vps-stack monitor enable <domain>"
+    [[ -d "${MONITOR_STATE_DIR}" ]] || die "${MONITOR_STATE_DIR} does not exist. Run: sudo vps-stack monitor refresh"
 
+    # The history collected before a reboot is on the page right away.
+    publish_history || log_warn "Could not write ${HISTORY_JSON}."
     if [[ "${once}" == "1" ]]; then
+        COLLECT_HISTORY=0
         collect_once || die "Could not write ${STATUS_FILE}."
         return 0
     fi
+    COLLECT_HISTORY=1
     while true; do
         started="${SECONDS}"
         collect_once || log_warn "Could not write ${STATUS_FILE}; trying again in ${INTERVAL} s."
@@ -261,7 +319,7 @@ write_tmpfiles_and_dirs() {
     content="$(render_template "${REPO_ROOT}/templates/vps-stack-monitor-tmpfiles.conf" "RUN_DIR=${MONITOR_RUN_DIR}")"
     write_file "${TMPFILES_FILE}" 644 <<<"${content}"
     run install -d -m 755 -o root -g root "${MONITOR_RUN_DIR}"
-    run install -d -m 700 -o root -g root "${MONITOR_LOG_DIR}"
+    run install -d -m 700 -o root -g root "${MONITOR_LOG_DIR}" "${MONITOR_STATE_DIR}"
     if [[ ! -e "${LOG_FILE}" ]]; then
         # fail2ban refuses a jail whose log file does not exist yet.
         run install -m 600 -o root -g root /dev/null "${LOG_FILE}"
@@ -271,7 +329,7 @@ write_tmpfiles_and_dirs() {
 install_service() {
     local content
     content="$(render_template "${REPO_ROOT}/templates/vps-stack-monitor.service.tmpl" \
-        "VPS_STACK_BIN=${VPS_STACK_BIN}" "RUN_DIR=${MONITOR_RUN_DIR}")"
+        "VPS_STACK_BIN=${VPS_STACK_BIN}" "RUN_DIR=${MONITOR_RUN_DIR}" "STATE_DIR=${MONITOR_STATE_DIR}")"
     write_file "${SERVICE_FILE}" 644 <<<"${content}"
     run systemctl daemon-reload
     run systemctl enable --quiet "${SERVICE_NAME}.service"
@@ -500,7 +558,7 @@ cmd_disable() {
     remove_service
     remove_fail2ban
     run rm -f "${MONITOR_BAN_SNIPPET}" "${MONITOR_BAN_LIST}" "${TMPFILES_FILE}"
-    run rm -rf "${MONITOR_RUN_DIR}"
+    run rm -rf "${MONITOR_RUN_DIR}" "${MONITOR_STATE_DIR}"
 
     log_ok "The status page is disabled. Copy of the site file: ${target}"
     log_info "The access logs stay in ${MONITOR_LOG_DIR}; remove the directory if you do not need them."
@@ -539,6 +597,42 @@ cmd_password() {
     print_credentials "${MONITOR_DOMAIN}" "${MONITOR_USER}" "${password}"
 }
 
+# --- refresh ----------------------------------------------------------------
+
+# cmd_refresh: after an update of vps-stack, bring an enabled status page in
+# line with the new templates (site file, collector service, fail2ban jail).
+# The password stays: its hash is taken from the current site file.
+cmd_refresh() {
+    local hash content old_content
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --yes | -y) ASSUME_YES=1 ;;
+            *) die "Unknown option: $1" ;;
+        esac
+        shift
+    done
+    require_root
+    require_etc_access write
+    require_cmd docker systemctl
+    require_enabled
+
+    hash="$(awk 'found && NF == 2 { print $2; exit } /basic_auth \{/ { found = 1 }' "${MONITOR_SITE_FILE}")"
+    validate_bcrypt_hash "${hash}" 2>/dev/null ||
+        die "Cannot read the password hash from ${MONITOR_SITE_FILE}. Set a new password instead: vps-stack monitor password"
+    content="$(render_site_file "${MONITOR_DOMAIN}" "${MONITOR_USER}" "${hash}")" || die "Could not render the site file."
+    old_content="$(cat "${MONITOR_SITE_FILE}")"
+
+    write_tmpfiles_and_dirs
+    install_service
+    write_file --no-backup "${MONITOR_SITE_FILE}" 600 <<<"${content}"
+    if [[ "${WRITE_FILE_CHANGED}" == "1" ]] && caddy_running && ! "${PROXY_SCRIPT}" reload; then
+        write_file --no-backup "${MONITOR_SITE_FILE}" 600 <<<"${old_content}"
+        die "Caddy rejected the new site file. The previous one was restored."
+    fi
+    install_fail2ban
+    log_ok "The status page at ${MONITOR_DOMAIN} is up to date. The password did not change."
+}
+
 # --- status -----------------------------------------------------------------
 
 cmd_status() {
@@ -562,6 +656,12 @@ cmd_status() {
         printf 'Data:        written %s s ago\n' "${age}"
     else
         printf 'Data:        %s does not exist\n' "${STATUS_FILE}"
+    fi
+    if [[ -s "${HISTORY_FILE}" ]]; then
+        printf 'History:     %s samples, the oldest from %s\n' "$(wc -l <"${HISTORY_FILE}" | tr -d ' ')" \
+            "$(head -n 1 "${HISTORY_FILE}" | jq -r '.t | todate' 2>/dev/null || printf 'unknown')"
+    else
+        printf 'History:     none yet (one sample every %s s)\n' "${HISTORY_INTERVAL}"
     fi
     if caddy_running; then
         printf 'Proxy:       running\n'
@@ -589,6 +689,7 @@ main() {
         disable) cmd_disable "$@" ;;
         password) cmd_password "$@" ;;
         status) cmd_status "$@" ;;
+        refresh) cmd_refresh "$@" ;;
         collect) cmd_collect "$@" ;;
         ban)
             require_root
