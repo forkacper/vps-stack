@@ -137,8 +137,26 @@ key): the key works. If not, see [When it does not work](#when-it-does-not-work)
 
 Provisioning creates a new administrator account and installs your key for
 it from a file **on the server**, named by `ADMIN_SSH_PUBKEY_FILE` in
-`stack.env`. Copy the public key into the home directory of the account you
-log in with. On your computer:
+`stack.env`. It is the same key, not a new one: the new account needs it
+because the provider's default account loses SSH access after provisioning.
+
+**The simplest way:** your key is already in `authorized_keys` of the account
+you log in with (step 4), so point at that file. Check first what it holds:
+
+```bash
+ssh-keygen -l -f ~/.ssh/authorized_keys
+```
+
+When it lists only your key (one line ending in `(ED25519)`), in
+`stack.env`:
+
+```bash
+ADMIN_SSH_PUBKEY_FILE=/home/ubuntu/.ssh/authorized_keys
+```
+
+Provisioning installs **every** line of that file for the new account, so
+when there are other keys (for example one the provider added), use a
+separate file instead. On your computer:
 
 ```bash
 scp ~/.ssh/example-vps.pub example-vps:admin.pub
@@ -170,7 +188,7 @@ mistake, treat it as leaked and create a new pair.
 
 Provisioning stops and asks you to test a second session before it disables
 passwords and root login, and from then on only the new administrator (by
-default `admin`) and the deployment account may log in over SSH. The
+default `sysadmin`) and the deployment account may log in over SSH. The
 provider's default account, `ubuntu` included, no longer can.
 
 So when provisioning asks for the test, change `User` in the entry on your
@@ -179,7 +197,7 @@ computer:
 ```
 Host example-vps
     HostName <server-address>
-    User admin
+    User sysadmin
     IdentityFile ~/.ssh/example-vps
     IdentitiesOnly yes
 ```
@@ -188,7 +206,7 @@ and in a **new** terminal, without closing the one where provisioning runs:
 
 ```bash
 ssh example-vps
-sudo -v          # the password you set for admin during provisioning
+sudo -v          # the password you set for sysadmin during provisioning
 ```
 
 Only when both work, type `YES` in the first terminal.

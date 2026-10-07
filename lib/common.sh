@@ -334,7 +334,7 @@ load_env_file() {
 
 # stack_config_defaults: defaults documented in config/stack.env.example.
 stack_config_defaults() {
-    ADMIN_USER="admin"
+    ADMIN_USER="sysadmin"
     DEPLOY_USER="deploy"
     DEPLOY_IN_DOCKER_GROUP="false"
     ADMIN_SSH_PUBKEY_FILE=""

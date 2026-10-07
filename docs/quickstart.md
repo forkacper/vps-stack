@@ -95,10 +95,10 @@ you:
 2. **Second SSH session test.** Before the script disables passwords and root
    login, it asks you to type `YES`. **Do not type it by reflex.** Open a
    second terminal and check, as the new administrator (with the entry
-   from [ssh-keys.md](ssh-keys.md), step 7: `User admin`):
+   from [ssh-keys.md](ssh-keys.md), step 7: `User sysadmin`):
 
    ```bash
-   ssh admin@<server-address>
+   ssh sysadmin@<server-address>
    sudo -v
    ```
 

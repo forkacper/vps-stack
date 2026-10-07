@@ -8,7 +8,7 @@ at your provider.
 - Do you still have an old SSH session open? **Do not close it.** You can fix
   most problems from it with the commands further down.
 - Check that you are connecting as the right user and to the right port:
-  `ssh -v -p <port> admin@<address>`. After provisioning only the accounts in
+  `ssh -v -p <port> sysadmin@<address>`. After provisioning only the accounts in
   `AllowUsers` (the administrator and the deployment account) log in over SSH,
   by key only. Root and the provider's default user no longer do.
 - `Connection refused` points to a wrong port or sshd not running. No reply (a

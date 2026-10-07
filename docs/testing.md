@@ -81,10 +81,10 @@ database.
 
 From a separate terminal, without closing the first session:
 
-- [ ] `ssh admin@<server>` works with the key.
+- [ ] `ssh sysadmin@<server>` works with the key.
 - [ ] `sudo -v` works with the password that was set.
 - [ ] `ssh root@<server>` is rejected.
-- [ ] `ssh -o PubkeyAuthentication=no admin@<server>` is rejected (no password
+- [ ] `ssh -o PubkeyAuthentication=no sysadmin@<server>` is rejected (no password
       login).
 - [ ] The provider's default user can no longer log in over SSH.
 

@@ -230,6 +230,10 @@ validate_config() {
             errors+=("${name}: '${value}' is not a valid user name.")
         elif [[ "${value}" == "root" ]]; then
             errors+=("${name}: must not be 'root'.")
+        elif ! user_exists "${value}" && getent group "${value}" >/dev/null 2>&1; then
+            # useradd creates a group named after the user and fails when one
+            # exists. Ubuntu cloud images have a group "admin" (cloud-init).
+            errors+=("${name}: a group named '${value}' already exists on this system (on Ubuntu cloud images cloud-init creates 'admin'). Choose another name, e.g. ${name}=sysadmin.")
         fi
     done
     if [[ "${ADMIN_USER}" == "${DEPLOY_USER}" ]]; then
@@ -261,7 +265,8 @@ validate_config() {
         errors+=("PROXY_NETWORK: '${PROXY_NETWORK}' is not a valid Docker network name.")
     fi
 
-    # The admin key is required unless a previous run already installed one.
+    # The administrator's key is required unless a previous run already
+    # installed one.
     if [[ -n "${ADMIN_SSH_PUBKEY_FILE}" && -r "${ADMIN_SSH_PUBKEY_FILE}" ]]; then
         if ! ssh-keygen -l -f "${ADMIN_SSH_PUBKEY_FILE}" >/dev/null 2>&1; then
             errors+=("ADMIN_SSH_PUBKEY_FILE: ${ADMIN_SSH_PUBKEY_FILE} does not contain a valid SSH public key.")
