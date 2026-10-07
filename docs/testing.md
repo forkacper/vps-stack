@@ -11,11 +11,18 @@ without a server:
 | `bats tests/validate.bats` | validation of domains, upstreams and sizes |
 | `bats tests/render.bats` | generation of site files and rejection of injection attempts |
 | `bats tests/monitor.bats` | status page: logins, hashes, IP addresses, site file, ban list, `status.json` built only from the allowed fields |
+| `bats tests/backup.bats` | backup groups: names, paths, the order of groups, the last successful backup from the log, restore targets, export formats, staging pruning |
+| `bats tests/release.bats` | release notes taken from `CHANGELOG.md`, refusal of relative links, `VERSION` format |
+| version and changelog | `VERSION` is `MAJOR.MINOR.PATCH`, has its `CHANGELOG.md` section, and `## [Unreleased]` exists |
 | `fail2ban-regex` | the status page filter on `tests/fixtures/monitor-access.log`: failed logins match, requests without credentials and injection attempts do not |
 | `systemd-analyze verify` | the collector unit of the status page |
 | `docker compose config` | validity of `proxy/docker-compose.yml`, alone and with `docker-compose.monitor.yml` |
 | `caddy validate` | validity of the Caddyfile with an empty `sites/`, with a generated site file and with the status page (empty and non-empty ban list) |
 | secret scan (gitleaks) | no keys or passwords in the repository and its history |
+
+On a version tag, `.github/workflows/release.yml` runs the same checks again,
+verifies that the tag, `VERSION` and the changelog agree, and creates the
+GitHub release ([releasing.md](releasing.md)).
 
 **CI does not test provisioning.** It runs neither `provision`, `ssh-port`,
 `backup` nor `verify`. Everything that depends on systemd, sshd, ufw,
@@ -28,7 +35,7 @@ works on a server".
 ## Local tests
 
 ```bash
-shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh tests/helpers.bash examples/*.sh.example
+shellcheck -x bin/vps-stack lib/*.sh scripts/*.sh .github/scripts/*.sh tests/helpers.bash examples/*.sh.example
 bats tests/
 ```
 
@@ -131,6 +138,8 @@ Following [adding-sites.md](adding-sites.md):
 
 ### 8. SSH port change
 
+- [ ] If the provider has a firewall in its panel: port 2222 opened there
+      first.
 - [ ] `sudo vps-stack ssh-port 2222`: the detected mode (socket or service)
       matches the note from step 0.
 - [ ] A new session on port 2222 works, **the old session still works**.

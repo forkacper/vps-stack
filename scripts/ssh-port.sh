@@ -34,6 +34,9 @@ Changes the SSH port in a safe order:
 
 The current SSH session stays open the whole time. Keep your provider's
 rescue console at hand (docs/ssh-recovery.md).
+
+Only ufw is changed. If your provider has a firewall in its panel (a cloud
+firewall, security groups), open the new port there BEFORE running this.
 USAGE
 }
 

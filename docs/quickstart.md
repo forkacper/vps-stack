@@ -165,6 +165,10 @@ swap, firewall, Docker and the proxy have to come up on their own.
 - **Monitoring.** The minimum is an external uptime check:
   [monitoring.md](monitoring.md).
 - **Changing the SSH port** (optional): `sudo vps-stack ssh-port <port>`.
+  If your provider has a firewall in its panel (a cloud firewall, security
+  groups), open the new port **there first**: `vps-stack` changes only ufw.
+  Keep the current session open until the command has finished, then update
+  `Port` in `~/.ssh/config` on your computer ([ssh-keys.md](ssh-keys.md)).
 - Lock the provider's default user once you have confirmed that the
   administrator account works. The provisioning summary prints the
   instructions.

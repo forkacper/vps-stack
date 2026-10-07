@@ -61,12 +61,12 @@ The only ports published on the server are 80/tcp, 443/tcp and 443/udp
 
 ## Directory layout
 
-Code and local configuration are kept apart: `git pull` in the code directory
-overwrites no settings, and `/etc/vps-stack` can be kept in your own private
-repository.
+Code and local configuration are kept apart: updating the code (checking out
+a newer release tag, [releasing.md](releasing.md)) overwrites no settings, and
+`/etc/vps-stack` can be kept in your own private repository.
 
 ```
-/opt/vps-stack/            clone of this repository (code, replaceable by git pull)
+/opt/vps-stack/            clone of this repository at a release tag (code only)
 /etc/vps-stack/            local configuration, root:root, 700
 ├── stack.env              provisioning parameters (600)
 ├── proxy.env              ACME_EMAIL, ACME_CA (600)
@@ -140,6 +140,7 @@ While the status page is enabled, `vps-stack proxy` adds
 directory of the status page writable. The directory is mounted rather than
 the file, so the container sees every new `status.json` at once.
 
-A practical note: `proxy/Caddyfile` is mounted as a single file. When
-`git pull` replaces it, the running container still sees the old version.
+A practical note: `proxy/Caddyfile` is mounted as a single file. When an
+update of `vps-stack` replaces it, the running container still sees the old
+version.
 After an update that changes this file, run `sudo vps-stack proxy restart`.
