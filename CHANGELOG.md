@@ -9,6 +9,8 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-07
+
 ### Fixed
 
 - `provision` failed at the "Users" step on Ubuntu cloud images: they already
@@ -122,7 +124,8 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/forkacper/vps-stack/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/forkacper/vps-stack/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/forkacper/vps-stack/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/forkacper/vps-stack/compare/v0.1.0...v0.2.0
