@@ -22,11 +22,11 @@ APT_LOCK_RETRY_DELAY="${VPS_STACK_APT_LOCK_RETRY_DELAY:-10}"
 
 # A release reports `ok` only once the repository owner has recorded a real
 # test run of it in README.md ("Verified on"); until then `untested`, which
-# makes the scripts warn at start. 24.04: tested on 2026-10-07.
+# makes the scripts warn at start. 24.04: tested on 2026-10-07; 26.04: on
+# 2026-10-08.
 os_check_supported() {
     case "${OS_VERSION_ID}" in
-        24.04) printf 'ok\n' ;;
-        26.04) printf 'untested\n' ;;
+        24.04 | 26.04) printf 'ok\n' ;;
         *) printf 'unsupported\n' ;;
     esac
 }

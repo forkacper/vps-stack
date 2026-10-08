@@ -1,6 +1,6 @@
 # vps-stack
 
-> **Status: 0.x. Confirmed on Ubuntu 24.04 (see [Verified on](#verified-on)); Ubuntu 26.04 untested. Use at your own risk.**
+> **Status: 0.x. Confirmed on Ubuntu 24.04 and 26.04 (see [Verified on](#verified-on)). Use at your own risk.**
 >
 > The scripts run as **root** and change the **SSH and firewall**
 > configuration. A mistake there can lock you out of the server. Do the first
@@ -80,7 +80,7 @@ Details: [docs/architecture.md](docs/architecture.md).
 
 | System | Status | Tested by | Date | Commit |
 |---|---|---|---|---|
-| Ubuntu 26.04 LTS | target system; code implemented, **untested** (warning at start) | | | |
+| Ubuntu 26.04 LTS | target system; **tested** on a real server | forkacper | 2026-10-08 | `8637498` (0.5.0) |
 | Ubuntu 24.04 LTS | **tested** on a real server | forkacper | 2026-10-07 | `7a9915a` (0.5.0) |
 | Debian 12 / 13 | planned; the script refuses to run ("not implemented") | | | |
 | Debian 11 and older, other distributions | not supported | | | |
@@ -99,6 +99,7 @@ not listed here has not been confirmed on a real server.
 
 | Date | System | Provider | Commit | Result | Notes |
 |---|---|---|---|---|---|
+| 2026-10-08 | Ubuntu 26.04 LTS | OVH VPS | `8637498` (0.5.0) | OK | Automated test `tests/e2e/run.sh` (all checks passed), `ssh.socket` mode, `sudo-rs`, staging CA. No vps-stack bugs found |
 | 2026-10-07 | Ubuntu 24.04.4 LTS | OVH VPS | `7a9915a` (0.5.0) | OK | Whole procedure of docs/testing.md, `ssh.socket` mode, staging CA. Bugs found and fixed: `admin` group from cloud-init (0.4.1), apt lock held by automatic updates (0.4.2), IPv6 clients seen as the Docker gateway, status page polling with an old password, `monitor refresh` without `stack.env` (0.5.0) |
 
 ## Quick start

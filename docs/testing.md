@@ -274,6 +274,7 @@ supported systems table). Record only what you actually did.
 
 | Date | System | Provider | Commit | Result | Notes |
 |---|---|---|---|---|---|
+| 2026-10-08 | Ubuntu 26.04 LTS (kernel 7.0, OpenSSH 10.2p1, restic 0.18.1, fail2ban 1.1.0) | OVH VPS | `8637498` (0.5.0) | OK | Automated test `tests/e2e/run.sh` (all checks passed), `ssh.socket` mode, `sudo-rs`, staging CA. No vps-stack bugs found |
 | 2026-10-07 | Ubuntu 24.04.4 LTS (OpenSSH 9.6p1, restic 0.16.4, fail2ban 1.0.2) | OVH VPS | `7a9915a` (0.5.0) | OK | Whole procedure of docs/testing.md, `ssh.socket` mode, staging CA. Bugs found and fixed: `admin` group from cloud-init (0.4.1), apt lock held by automatic updates (0.4.2), IPv6 clients seen as the Docker gateway, status page polling with an old password, `monitor refresh` without `stack.env` (0.5.0) |
 
 Result: `OK` (the whole procedure), `partial` (list the skipped steps in the
