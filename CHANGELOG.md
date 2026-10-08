@@ -16,6 +16,12 @@ incompatible way.
   backup and restore, sites and the status page, with a PASS/FAIL report
   ([docs/testing.md](https://github.com/forkacper/vps-stack/blob/master/docs/testing.md#automated-end-to-end-test)).
 
+### Changed
+
+- Ubuntu 26.04 is confirmed on a real server (OVH, 2026-10-08, with the new
+  end-to-end test; see "Verified on" in the README): the scripts no longer
+  warn that it is untested.
+
 ## [0.5.0] - 2026-10-08
 
 **Run once on existing servers: `sudo vps-stack proxy network-ipv6`**
