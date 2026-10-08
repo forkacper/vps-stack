@@ -243,7 +243,8 @@ footer {
     margin-top: 24px;
 }
 
-.history {
+.history,
+.containers {
     margin-bottom: 28px;
 }
 

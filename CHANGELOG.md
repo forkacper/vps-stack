@@ -9,6 +9,14 @@ incompatible way.
 
 ## [Unreleased]
 
+### Added
+
+- Status page: the last successful backup of every backup group, with the
+  same thresholds as `verify` (warning after 13 hours, error after 48)
+  ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/monitoring.md#5-optional-the-built-in-status-page)).
+  On a server with the status page enabled, run once after updating:
+  `sudo vps-stack monitor refresh` (it restarts the collector).
+
 ## [0.6.0] - 2026-10-08
 
 ### Added

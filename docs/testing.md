@@ -10,8 +10,8 @@ without a server:
 | `shellcheck`, `bash -n` | syntax and common mistakes in all scripts |
 | `bats tests/validate.bats` | validation of domains, upstreams and sizes |
 | `bats tests/render.bats` | generation of site files and rejection of injection attempts |
-| `bats tests/monitor.bats` | status page: logins, hashes, IP addresses, site file, ban list, `status.json` built only from the allowed fields |
-| `bats tests/backup.bats` | backup groups: names, paths, the order of groups, the last successful backup from the log, restore targets, export formats, staging pruning |
+| `bats tests/monitor.bats` | status page: logins, hashes, IP addresses, site file, ban list, `status.json` built only from the allowed fields, backup states |
+| `bats tests/backup.bats` | backup groups: names, paths, the order of groups, the last successful backup from the log and its age state, restore targets, export formats, staging pruning |
 | `bats tests/release.bats` | release notes taken from `CHANGELOG.md`, refusal of relative links, `VERSION` format |
 | version and changelog | `VERSION` is `MAJOR.MINOR.PATCH`, has its `CHANGELOG.md` section, and `## [Unreleased]` exists |
 | `fail2ban-regex` | the status page filter on `tests/fixtures/monitor-access.log`: failed logins match, requests without credentials and injection attempts do not |
@@ -85,7 +85,7 @@ after a reboot, and the rollback when it is not confirmed), backup (init,
 run, deduplication, restore and import with every row, a single file,
 export, a broken hook, the schedule), `add-site` / `remove-site` with a
 staging certificate, the status page (login, `status.json` without
-environment variables, the IPv4 and IPv6 client address, a fail2ban ban
+environment variables, the last backup of every group, the IPv4 and IPv6 client address, a fail2ban ban
 of your computer after failed logins that leaves the other site reachable,
 then the unban, `monitor password`, `monitor refresh`,
 history).
@@ -253,6 +253,8 @@ With a test domain pointing at the server (`ACME_CA` set to staging):
       address, not a Docker gateway such as `172.18.0.1`; `verify` shows
       "Docker: network proxy: IPv6 enabled".
 - [ ] After a reboot the page works again without any command.
+- [ ] With backups set up (step 9), the "Backups" section lists every group
+      with its last successful backup, in the same state as `verify`.
 - [ ] `sudo vps-stack verify` shows the three status page rows as OK.
 - [ ] After 15 minutes the history charts show 3 samples; after a reboot
       they are still there, with a gap for the time the server was down.

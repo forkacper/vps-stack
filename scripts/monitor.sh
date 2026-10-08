@@ -11,6 +11,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 source "${SCRIPT_DIR}/../lib/validate.sh"
 # shellcheck source=lib/monitor.sh
 source "${SCRIPT_DIR}/../lib/monitor.sh"
+# shellcheck source=lib/backup.sh
+source "${SCRIPT_DIR}/../lib/backup.sh"
 
 SERVICE_NAME="vps-stack-monitor"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -180,11 +182,27 @@ record_history() {
     publish_history
 }
 
+# backup_lines: one line per backup group for monitor_backups_json, from the
+# same log lines as verify and `backup list`. Nothing else is read.
+backup_lines() {
+    local group last_ok last_epoch state hours now
+    now="$(date -u +%s)"
+    while IFS= read -r group; do
+        last_ok="$(backup_last_ok "${group}" "${BACKUP_LOG_FILE}.1" "${BACKUP_LOG_FILE}")"
+        last_epoch=""
+        if [[ -n "${last_ok}" ]]; then
+            last_epoch="$(date -u -d "${last_ok}" +%s 2>/dev/null)" || last_epoch=""
+        fi
+        read -r state hours < <(backup_age_state "${last_epoch}" "${now}")
+        printf '%s|%s|%s|%s\n' "${group}" "${last_ok}" "${state}" "${hours}"
+    done < <(backup_groups)
+}
+
 # collect_once: write status.json. Every step is checked explicitly: the
 # loop calls this in a context where `set -e` does not apply.
 collect_once() {
     local total idle cpu="" disk_total disk_used reboot=false docker_ok=false
-    local ids inspect="" stats="" host containers json tmp
+    local ids inspect="" stats="" host containers backups json tmp
 
     read -r total idle < <(monitor_cpu_sample /proc/stat) || return 1
     if [[ -z "${PREV_CPU_TOTAL}" ]]; then
@@ -215,7 +233,8 @@ collect_once() {
 
     host="$(monitor_host_json /proc "$(uname -n)" "$(nproc)" "${cpu}" "${disk_total}" "${disk_used}" "${reboot}")" || return 1
     containers="$(monitor_containers_json "${inspect}" "${stats}")" || return 1
-    json="$(monitor_status_json "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${INTERVAL}" "${docker_ok}" "${host}" "${containers}")" || return 1
+    backups="$(monitor_backups_json "$(backup_lines)")" || return 1
+    json="$(monitor_status_json "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${INTERVAL}" "${docker_ok}" "${host}" "${containers}" "${backups}")" || return 1
 
     # Written next to the target and renamed: a reader never sees half a
     # file, and the directory mount in Caddy sees the new file at once.
@@ -463,8 +482,9 @@ Status page
   Address:   https://${domain}
   Login:     ${user} (the password is generated and shown once at the end)
   Shows:     CPU, memory, swap, disk, load; containers with image, state,
-             health, restarts, CPU and memory. Never environment variables,
-             labels, mounts, ports or logs.
+             health, restarts, CPU and memory; the last successful backup
+             of every backup group. Never environment variables, labels,
+             mounts, ports, logs or backup repositories.
   Protects:  login and password; fail2ban bans an address after 5 failed
              logins in 10 minutes, on the status page only.
   Changes:   a collector service (${SERVICE_NAME}), a site file, a fail2ban jail,

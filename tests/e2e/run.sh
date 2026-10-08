@@ -630,6 +630,12 @@ step_status_page() {
     else
         fail "status.json lists the containers and no environment variables"
     fi
+    # The backup step ran before: both groups have a fresh successful backup.
+    if jq -e '[.backups[] | select(.state == "ok" and .last_ok != null) | .group] | index("system") != null and index("e2e-app") != null' >/dev/null 2>&1 <<<"${out}"; then
+        pass "status.json shows the last backup of every group" "$(jq -c '[.backups[] | "\(.group): \(.state)"]' <<<"${out}")"
+    else
+        fail "status.json shows the last backup of every group" "$(jq -c '.backups' <<<"${out}" 2>/dev/null)"
+    fi
 
     # The client address: this computer over IPv4, the server itself over IPv6.
     https_code "${STATUS_HOST}" -4 >/dev/null

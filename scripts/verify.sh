@@ -195,25 +195,22 @@ check_permissions() {
 # backup_age_row <group> <note>: one report row from the age of the last
 # successful backup of the group.
 backup_age_row() {
-    local group="$1" note="$2" last_ok now last_epoch age_hours
+    local group="$1" note="$2" last_ok last_epoch state age_hours
     last_ok="$(backup_last_ok "${group}" "${BACKUP_LOG_FILE}.1" "${BACKUP_LOG_FILE}")"
     if [[ -z "${last_ok}" ]]; then
         report_add "WARN" "Backup: ${group}" "no successful backup in the log; ${note}"
         return 0
     fi
-    now="$(date -u +%s)"
     if ! last_epoch="$(date -u -d "${last_ok}" +%s 2>/dev/null)"; then
         report_add "WARN" "Backup: ${group}" "${last_ok} (cannot compute its age); ${note}"
         return 0
     fi
-    age_hours=$(((now - last_epoch) / 3600))
-    if [[ "${age_hours}" -gt 48 ]]; then
-        report_add "ERROR" "Backup: ${group}" "${age_hours} h ago (${last_ok}); ${note}"
-    elif [[ "${age_hours}" -gt 13 ]]; then
-        report_add "WARN" "Backup: ${group}" "${age_hours} h ago (${last_ok}); ${note}"
-    else
-        report_add "OK" "Backup: ${group}" "${age_hours} h ago; ${note}"
-    fi
+    read -r state age_hours < <(backup_age_state "${last_epoch}" "$(date -u +%s)")
+    case "${state}" in
+        error) report_add "ERROR" "Backup: ${group}" "${age_hours} h ago (${last_ok}); ${note}" ;;
+        warn) report_add "WARN" "Backup: ${group}" "${age_hours} h ago (${last_ok}); ${note}" ;;
+        *) report_add "OK" "Backup: ${group}" "${age_hours} h ago; ${note}" ;;
+    esac
 }
 
 check_backup() {

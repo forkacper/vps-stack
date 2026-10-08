@@ -79,6 +79,32 @@ backup_last_ok() {
     printf '%s\n' "${last}"
 }
 
+# Age of the last successful backup that makes it a warning or an error. The
+# schedule runs every 6 hours (templates/cron-backup.tmpl): a warning after
+# two missed runs, an error after two days.
+BACKUP_WARN_HOURS=13
+BACKUP_ERROR_HOURS=48
+
+# backup_age_state <last success, epoch seconds or empty> <now, epoch
+# seconds>: print "<state> <age in hours>". State: ok, warn or error; never
+# backed up is a warning (a group that was just set up). Shared by verify and
+# the status page, so that they always agree.
+backup_age_state() {
+    local last="$1" now="$2" hours
+    if [[ ! "${last}" =~ ^[0-9]+$ ]]; then
+        printf 'warn \n'
+        return 0
+    fi
+    hours=$(((now - last) / 3600))
+    if [[ "${hours}" -gt "${BACKUP_ERROR_HOURS}" ]]; then
+        printf 'error %s\n' "${hours}"
+    elif [[ "${hours}" -gt "${BACKUP_WARN_HOURS}" ]]; then
+        printf 'warn %s\n' "${hours}"
+    else
+        printf 'ok %s\n' "${hours}"
+    fi
+}
+
 # backup_target_ok <directory>: a restore never writes over live data. The
 # target is an absolute path that does not exist yet or is an empty
 # directory.
