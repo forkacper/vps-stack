@@ -90,6 +90,27 @@ setup() {
     [ "$output" = "" ]
 }
 
+@test "age state: ok, then a warning, then an error" {
+    local now=1791446400
+    run backup_age_state $((now - 3 * 3600)) "${now}"
+    [ "$output" = "ok 3" ]
+    run backup_age_state $((now - 13 * 3600)) "${now}"
+    [ "$output" = "ok 13" ]
+    run backup_age_state $((now - 14 * 3600)) "${now}"
+    [ "$output" = "warn 14" ]
+    run backup_age_state $((now - 48 * 3600)) "${now}"
+    [ "$output" = "warn 48" ]
+    run backup_age_state $((now - 49 * 3600)) "${now}"
+    [ "$output" = "error 49" ]
+}
+
+@test "age state: never backed up or an unreadable time is a warning without an age" {
+    run backup_age_state "" 1791446400
+    [ "$output" = "warn " ]
+    run backup_age_state "2026-10-08T00:00:00Z" 1791446400
+    [ "$output" = "warn " ]
+}
+
 # --- restore target and export ----------------------------------------------
 
 @test "restore target: a new or empty absolute directory" {

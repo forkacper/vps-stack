@@ -54,7 +54,9 @@ memory, swap, disk and load, and every container with its image, state,
 health check, uptime, restarts, CPU and memory. It refreshes every 10
 seconds, and shows the history of the last 24 hours or 7 days as charts: CPU
 (average and highest), memory, disk and load, and a 24-hour memory trend of
-every container. It is **disabled by default** and is meant for looking at
+every container. When backups are set up, it also shows the last successful
+backup of every backup group, with the same warning (13 hours) and error
+(48 hours) thresholds as `verify`. It is **disabled by default** and is meant for looking at
 the server, not for alerting: it sends no notifications.
 
 ```bash
@@ -77,7 +79,10 @@ How it works:
   `/run/vps-stack-monitor/status.json` every 10 seconds. It asks Docker for a
   fixed list of fields only (name, image, state, health, start time,
   restarts, CPU, memory). **Environment variables, labels, mounts, ports,
-  networks and logs are never read**, so they cannot reach the page.
+  networks and logs are never read**, so they cannot reach the page. For
+  backups it reads the list of groups and the `BACKUP_OK` lines of the backup
+  log, nothing else: no repository address, path or password reaches the
+  page.
 - Every 5 minutes it also appends a history sample (CPU average and highest
   over those 5 minutes, memory, swap, disk, load, and the memory of every
   running container) to `/var/lib/vps-stack-monitor/history.jsonl`. The file
@@ -100,7 +105,8 @@ site), because Caddy gets two extra read-only mounts.
 What to know:
 
 - If somebody obtains the login and password, they see what the page shows:
-  container names, image versions and resource usage. Not secrets.
+  container names, image versions, resource usage and the names of the
+  backup groups (your projects). Not secrets.
 - IPv6 clients are seen with their real address, so they are banned like
   IPv4 ones, as long as the `proxy` network has IPv6 (`verify` reports it).
   On a network created by `vps-stack` 0.4.2 or older they show up as a

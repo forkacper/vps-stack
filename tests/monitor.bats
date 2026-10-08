@@ -254,8 +254,34 @@ STATS=$'example-app-web|0.05%|10.86MiB / 128MiB|8.48%\nexample-app-db|1.20%|525.
     host="$(monitor_host_json "${PROC}" "vps-1" 2 "" 1 1 false)"
     containers="$(monitor_containers_json "${INSPECT}" "${STATS}")"
     json="$(monitor_status_json "2026-10-07T16:10:00Z" 10 true "${host}" "${containers}")"
-    [ "$(jq -c 'keys' <<<"${json}")" = '["containers","docker_available","generated_at","host","interval_seconds","version"]' ]
-    [ "$(jq -c '[.version, .interval_seconds, .docker_available, (.containers | length)]' <<<"${json}")" = "[1,10,true,3]" ]
+    [ "$(jq -c 'keys' <<<"${json}")" = '["backups","containers","docker_available","generated_at","host","interval_seconds","version"]' ]
+    [ "$(jq -c '[.version, .interval_seconds, .docker_available, (.containers | length), .backups]' <<<"${json}")" = "[1,10,true,3,[]]" ]
+}
+
+@test "backups json: groups with their state, in the given order" {
+    local lines
+    lines=$'system|2026-10-08T06:15:09Z|ok|3\nshop||warn|\nblog|2026-10-05T00:15:02Z|error|81'
+    run monitor_backups_json "${lines}"
+    [ "$status" -eq 0 ]
+    [ "$(jq -c '.' <<<"${output}")" = '[{"group":"system","last_ok":"2026-10-08T06:15:09Z","state":"ok","age_hours":3},{"group":"shop","last_ok":null,"state":"warn","age_hours":null},{"group":"blog","last_ok":"2026-10-05T00:15:02Z","state":"error","age_hours":81}]' ]
+}
+
+@test "backups json: malformed lines and unknown states are dropped" {
+    local lines
+    lines=$'system|2026-10-08T06:15:09Z|ok\nshop|x|broken|1\nblog|a|ok|1|extra\n\nweb||warn|'
+    run monitor_backups_json "${lines}"
+    [ "$status" -eq 0 ]
+    [ "$(jq -c 'map(.group)' <<<"${output}")" = '["web"]' ]
+}
+
+@test "backups json: no groups is an empty array, and it reaches status.json" {
+    local host backups
+    run monitor_backups_json ""
+    [ "$(jq -c . <<<"${output}")" = "[]" ]
+    host="$(monitor_host_json "${PROC}" "vps-1" 2 "" 1 1 false)"
+    backups="$(monitor_backups_json "system|2026-10-08T06:15:09Z|ok|0")"
+    run monitor_status_json "2026-10-08T06:20:00Z" 10 true "${host}" "[]" "${backups}"
+    [ "$(jq -c '.backups | map(.group)' <<<"${output}")" = '["system"]' ]
 }
 
 @test "docker formats: no field outside the allow list is requested" {

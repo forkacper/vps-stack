@@ -142,22 +142,41 @@ monitor_containers_json() {
         | sort_by(.name)'
 }
 
+# monitor_backups_json <lines>: the "backups" array from lines
+# "<group>|<last success or empty>|<state>|<age in hours or empty>", one per
+# backup group (see backup_age_state). Only these four fields: no repository,
+# path or password ever reaches status.json.
+monitor_backups_json() {
+    jq -n --arg lines "${1:-}" '
+        def num: if . == "" then null else (tonumber? // null) end;
+        [$lines | split("\n")[] | select(length > 0) | split("|") | select(length == 4)
+            | select(.[2] == "ok" or .[2] == "warn" or .[2] == "error")
+            | {
+                group: .[0],
+                last_ok: (if .[1] == "" then null else .[1] end),
+                state: .[2],
+                age_hours: (.[3] | num)
+            }]'
+}
+
 # monitor_status_json <generated at> <interval> <docker available: true|false>
-#                     <host json> <containers json>
+#                     <host json> <containers json> [backups json]
 monitor_status_json() {
     jq -n \
         --arg generated_at "$1" \
         --arg interval "$2" \
         --arg docker "$3" \
         --argjson host "$4" \
-        --argjson containers "$5" '
+        --argjson containers "$5" \
+        --argjson backups "${6:-[]}" '
         {
             version: 1,
             generated_at: $generated_at,
             interval_seconds: ($interval | tonumber),
             docker_available: ($docker == "true"),
             host: $host,
-            containers: $containers
+            containers: $containers,
+            backups: $backups
         }'
 }
 

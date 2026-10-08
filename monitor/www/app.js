@@ -216,6 +216,35 @@ function renderContainers(containers, generatedAt) {
         (problems > 0 ? ` · ${problems} with problems` : "");
 }
 
+// The state of a backup group comes from the server (the same thresholds as
+// vps-stack verify); only the label and the age are formatted here.
+const BACKUP_LEVELS = { ok: "ok", warn: "warn", error: "bad" };
+
+function renderBackups(backups, generatedAt) {
+    const section = $("backups-section");
+    // No backup groups: the section stays hidden.
+    section.hidden = backups.length === 0;
+    if (backups.length === 0) {
+        return;
+    }
+    const now = Date.parse(generatedAt);
+    const rows = backups.map((b) => {
+        const tr = document.createElement("tr");
+        tr.appendChild(cell(b.group));
+        const badgeLevel = BACKUP_LEVELS[b.state] || "warn";
+        const label = b.last_ok ? b.state : "never";
+        tr.appendChild(cell(badge(label, badgeLevel)));
+        const last = Date.parse(b.last_ok);
+        tr.appendChild(cell(Number.isNaN(last) ? "–" : formatTime(last / 1000)));
+        tr.appendChild(cell(Number.isNaN(last) || Number.isNaN(now) ? "–" : `${formatDuration((now - last) / 1000)} ago`));
+        return tr;
+    });
+    $("backups").replaceChildren(...rows);
+    const problems = backups.filter((b) => b.state !== "ok").length;
+    $("backups-summary").textContent = `${backups.length} ${backups.length === 1 ? "group" : "groups"}` +
+        (problems > 0 ? ` · ${problems} need attention` : "");
+}
+
 function renderFreshness() {
     if (stopped) {
         return;
@@ -502,6 +531,7 @@ async function refresh() {
         const data = await response.json();
         renderHost(data.host || {});
         renderContainers(Array.isArray(data.containers) ? data.containers : [], data.generated_at);
+        renderBackups(Array.isArray(data.backups) ? data.backups : [], data.generated_at);
         lastData = data;
         lastError = null;
     } catch (error) {
