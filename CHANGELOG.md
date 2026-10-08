@@ -9,12 +9,14 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-08
+
 ### Added
 
 - `tests/e2e/run.sh`: an end-to-end test of a fresh, disposable server, run
   from your computer: provisioning, SSH hardening and port change, reboots,
   backup and restore, sites and the status page, with a PASS/FAIL report
-  ([docs/testing.md](https://github.com/forkacper/vps-stack/blob/master/docs/testing.md#automated-end-to-end-test)).
+  ([docs/testing.md](https://github.com/forkacper/vps-stack/blob/v0.6.0/docs/testing.md#automated-end-to-end-test)).
 
 ### Changed
 
@@ -187,7 +189,8 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/forkacper/vps-stack/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/forkacper/vps-stack/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/forkacper/vps-stack/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/forkacper/vps-stack/compare/v0.4.0...v0.4.1
