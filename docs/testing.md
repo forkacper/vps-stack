@@ -73,8 +73,10 @@ tests/e2e/run.sh <server-address> --key ~/.ssh/example-vps \
 
 `--ref` picks the vps-stack version (default: the newest release),
 `--ssh-port` the port for the SSH port change (default 2222). The script
-creates the administrator `sysadmin` with a random password, and tests the
-second session, as that account, before it confirms the SSH hardening.
+creates the administrator `sysadmin` with a random password, kept in
+`e2e-reports/sysadmin-password-<time>` for looking into the server after a
+failure, and tests the second session, as that account, before it confirms
+the SSH hardening.
 
 What it checks: provisioning (dry run first), the closed doors (default
 account, password and root logins), `verify`, two reboots, a second
@@ -84,12 +86,12 @@ run, deduplication, restore and import with every row, a single file,
 export, a broken hook, the schedule), `add-site` / `remove-site` with a
 staging certificate, the status page (login, `status.json` without
 environment variables, the IPv4 and IPv6 client address, a fail2ban ban
-that the server provokes against itself through its public address and that
-leaves the other site reachable, `monitor password`, `monitor refresh`,
+of your computer after failed logins that leaves the other site reachable,
+then the unban, `monitor password`, `monitor refresh`,
 history).
 
-The report (`e2e-reports/report-<time>.md`, ignored by git: it holds the
-server's addresses) lists every check as PASS, FAIL or SKIP, the system and
+The report (`e2e-reports/report-<time>.md`; the directory is ignored by
+git, as it holds the server's addresses and the password) lists every check as PASS, FAIL or SKIP, the system and
 versions, and when everything passed, a row for the "Verified on" table. The
 full output is in the `log-<time>.txt` next to it. A failure of a critical
 step (connection, provisioning, SSH port change) stops the run, so that the

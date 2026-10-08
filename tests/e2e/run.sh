@@ -212,7 +212,7 @@ expect {
     "New password:" { send "$pw\r"; exp_continue }
     "Retype new password:" { send "$pw\r"; exp_continue }
     "Type YES to continue:" {
-        if {[catch {exec $env(E2E_SECOND_SESSION) 22} out] || ![string match "*SECOND_SESSION_OK*" $out]} {
+        if {[catch {exec $env(E2E_SECOND_SESSION) 22 2>@1} out] || ![string match "*SECOND_SESSION_OK*" $out]} {
             puts "\nE2E: the second session test FAILED: $out"
             send "NO\r"
         } else {
@@ -238,13 +238,13 @@ set mode $env(E2E_MODE)
 set new_port $env(E2E_NEW_PORT)
 spawn {*}$argv
 expect {
-    "password for" { send "$pw\r"; exp_continue }
+    -re {\[sudo[^]]*\] [Pp]assword} { send "$pw\r"; exp_continue }
     "Continue at your own risk?" { send "y\r"; exp_continue }
     "Change the SSH port" { send "y\r"; exp_continue }
     "Type YES to continue:" {
         if {$mode eq "rollback"} {
             send "no\r"
-        } elseif {[catch {exec $env(E2E_SECOND_SESSION) $new_port} out] || ![string match "*SECOND_SESSION_OK*" $out]} {
+        } elseif {[catch {exec $env(E2E_SECOND_SESSION) $new_port 2>@1} out] || ![string match "*SECOND_SESSION_OK*" $out]} {
             puts "\nE2E: the new port does not work: $out"
             send "no\r"
         } else {
@@ -304,6 +304,9 @@ WARNING
     read -r -p "Type the server address to continue: " answer
     [[ "${answer}" == "${ADDRESS}" ]] || { printf 'Aborted.\n' >&2; exit 1; }
     ADMIN_PW="$(head -c 18 /dev/urandom | base64 | tr '+/' 'xy')"
+    # Kept for looking into the server after a failure; e2e-reports/ is
+    # ignored by git.
+    (umask 077 && printf '%s\n' "${ADMIN_PW}" >"${REPORT_DIR}/sysadmin-password-${STAMP}")
     write_report
 }
 
@@ -410,7 +413,7 @@ step_ssh_port() {
     check "Port 22 is closed" port22_closed
     listen="$(as_root "systemctl show ssh.socket -p Listen 2>/dev/null; ufw status; grep '^port' /etc/fail2ban/jail.local; grep '^SSH_PORT' /etc/vps-stack/stack.env" 2>&1)"
     printf '%s\n' "${listen}" >>"${LOG}"
-    if [[ "${listen}" == *"SSH_PORT=${NEW_PORT}"* && "${listen}" == *"port = ${NEW_PORT}"* && "${listen}" != *"22/tcp "* ]]; then
+    if [[ "${listen}" == *"SSH_PORT=${NEW_PORT}"* && "${listen}" == *"port = ${NEW_PORT}"* && ! "${listen}" =~ (^|[[:space:]])22/tcp ]]; then
         pass "stack.env, fail2ban and ufw follow the new port"
     else
         fail "stack.env, fail2ban and ufw follow the new port"
@@ -542,8 +545,20 @@ https_code() {
     curl -sk -o /dev/null --max-time 15 -w '%{http_code}' "$@" "https://${host}/"
 }
 
+# cert_issuer <host>: waits up to 2 minutes for a staging certificate of the
+# host and prints its issuer (empty when there is none).
+cert_issuer() {
+    local i issuer=""
+    for ((i = 0; i < 24; i++)); do
+        issuer="$(echo | openssl s_client -connect "${ADDRESS}:443" -servername "$1" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null)"
+        [[ "${issuer}" == *STAGING* ]] && break
+        sleep 5
+    done
+    printf '%s\n' "${issuer}"
+}
+
 step_sites() {
-    local out i issuer
+    local out issuer
     if [[ -z "${SITE_HOST}" || -z "${STATUS_HOST}" || -z "${EMAIL}" ]]; then
         skip "Sites and status page" "--site, --status and --email not given"
         return 1
@@ -577,11 +592,7 @@ EOF
 cd /srv/e2e-web && docker compose up -d --quiet-pull
 vps-stack add-site ${SITE_HOST} e2e-web:80 --yes
 SCRIPT
-    for ((i = 0; i < 24; i++)); do
-        issuer="$(echo | openssl s_client -connect "${ADDRESS}:443" -servername "${SITE_HOST}" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null)"
-        [[ "${issuer}" == *STAGING* ]] && break
-        sleep 5
-    done
+    issuer="$(cert_issuer "${SITE_HOST}")"
     assert "add-site: staging certificate issued" "${issuer:-no certificate}" has "${issuer}" "STAGING"
     assert "add-site: HTTPS answers 200" "" is "$(https_code "${SITE_HOST}")" "200"
     assert "HTTP redirects to HTTPS" "" is "$(curl -s -o /dev/null --max-time 15 -w '%{http_code}' "http://${SITE_HOST}/")" "308"
@@ -597,7 +608,7 @@ SCRIPT
 }
 
 step_status_page() {
-    local out login password old_password ban_ip i code
+    local out login password old_password bad_password ban_ip i code
     out="$(as_root "vps-stack monitor enable ${STATUS_HOST} --no-dns-check --yes" 2>&1)"
     printf '%s\n' "${out}" | sed 's/^\(  Password: \).*/\1<hidden>/' >>"${LOG}"
     login="$(sed -n 's/^  Login: *\([^ ]*\)$/\1/p' <<<"${out}" | tail -n 1)"
@@ -607,6 +618,9 @@ step_status_page() {
         return 0
     fi
     pass "monitor enable"
+    # The certificate is requested only now; without it TLS fails (000).
+    out="$(cert_issuer "${STATUS_HOST}")"
+    assert "Status page: staging certificate issued" "${out:-no certificate}" has "${out}" "STAGING"
     assert "Status page asks for the login" "" is "$(https_code "${STATUS_HOST}")" "401"
     assert "Status page opens with the password" "" is "$(https_code "${STATUS_HOST}" -u "${login}:${password}")" "200"
     out="$(curl -sk --max-time 15 -u "${login}:${password}" "https://${STATUS_HOST}/status.json")"
@@ -628,21 +642,27 @@ step_status_page() {
         skip "IPv6 client address reaches Caddy" "the server has no IPv6"
     fi
 
-    # fail2ban: the server logs in to itself with a wrong password through
-    # its public address until it is banned; the other site must still work.
-    ban_ip="$(as_root "curl -s -4 --max-time 10 https://api.ipify.org")"
-    as_root "for i in 1 2 3 4 5 6; do curl -4 -sk -o /dev/null -u ${login}:wrong-password https://${STATUS_HOST}/; sleep 2; done" >/dev/null 2>&1
+    # fail2ban: this computer fails to log in until it is banned (from the
+    # server itself it would never be: fail2ban ignores the server's own
+    # addresses, ignoreself). The ban is only in Caddy and only for the
+    # status page, so SSH and the other site keep working for this computer.
+    ban_ip="$(curl -s -4 --max-time 10 https://api.ipify.org)"
+    bad_password="not-${password}"
+    for i in 1 2 3 4 5 6; do
+        https_code "${STATUS_HOST}" -4 -u "${login}:${bad_password}" >/dev/null
+        sleep 2
+    done
     for ((i = 0; i < 20; i++)); do
         as_root "grep -qx '${ban_ip}' /etc/vps-stack/monitor-banned.list" >/dev/null 2>&1 && break
         sleep 3
     done
-    code="$(as_root "curl -4 -sk -o /dev/null --max-time 10 -w '%{http_code}' https://${STATUS_HOST}/")"
+    code="$(https_code "${STATUS_HOST}" -4)"
     assert "fail2ban bans after failed logins (status page closed)" "code ${code}" is "${code}" "000"
-    code="$(as_root "curl -4 -sk -o /dev/null --max-time 10 -w '%{http_code}' https://${SITE_HOST}/")"
+    code="$(https_code "${SITE_HOST}" -4)"
     assert "The ban does not touch other sites" "code ${code}" is "${code}" "200"
     as_root "fail2ban-client set vps-stack-monitor unbanip ${ban_ip}" >>"${LOG}" 2>&1
     sleep 5
-    code="$(as_root "curl -4 -sk -o /dev/null --max-time 10 -w '%{http_code}' https://${STATUS_HOST}/")"
+    code="$(https_code "${STATUS_HOST}" -4)"
     assert "unban opens the status page again" "code ${code}" is "${code}" "401"
 
     old_password="${password}"
