@@ -342,6 +342,7 @@ stack_config_defaults() {
     SSH_PORT="22"
     FAIL2BAN_IGNOREIP=""
     SWAP_SIZE="2G"
+    SERVER_HOSTNAME=""
     TIMEZONE="Etc/UTC"
     AUTO_REBOOT="false"
     PROXY_NETWORK="proxy"

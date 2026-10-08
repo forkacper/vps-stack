@@ -16,6 +16,12 @@ incompatible way.
   ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/monitoring.md#5-optional-the-built-in-status-page)).
   On a server with the status page enabled, run once after updating:
   `sudo vps-stack monitor refresh` (it restarts the collector).
+- `SERVER_HOSTNAME` in `stack.env` (optional, empty by default): provisioning
+  sets the host name, its `127.0.1.1` line in `/etc/hosts` and, on cloud
+  images, tells cloud-init to keep both; `verify` checks that the name
+  resolves ([config/stack.env.example](https://github.com/forkacper/vps-stack/blob/v0.7.0/config/stack.env.example)).
+  After changing the name of a server with backups, the next backup reads
+  all files again once (no extra space thanks to deduplication).
 
 ## [0.6.0] - 2026-10-08
 

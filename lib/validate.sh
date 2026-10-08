@@ -152,6 +152,56 @@ validate_port() {
     [[ "${port}" -ge 1 && "${port}" -le 65535 ]]
 }
 
+# validate_hostname <value>: the server's host name, short (srv1) or fully
+# qualified (srv1.example.com). Lowercase letters, digits and "-" in labels of
+# up to 63 characters that neither start nor end with "-", 253 characters in
+# total; not all digits, so that it cannot be taken for an IP address.
+validate_hostname() {
+    local LC_ALL=C
+    local value="${1:-}" label
+    local re_label='^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
+    local -a labels=()
+    local message="the host name must be lowercase letters, digits and -, in parts separated by dots, e.g. srv1 or srv1.example.com."
+    if [[ ! "${value}" =~ ^[a-z0-9.-]+$ || "${#value}" -gt 253 || "${value}" == .* || "${value}" == *. || "${value}" == *..* ||
+        "${value}" =~ ^[0-9.]+$ ]]; then
+        _validate_fail "${message}"
+        return 1
+    fi
+    IFS='.' read -r -a labels <<<"${value}"
+    for label in "${labels[@]}"; do
+        if [[ ! "${label}" =~ ${re_label} ]]; then
+            _validate_fail "${message}"
+            return 1
+        fi
+    done
+}
+
+# hosts_with_hostname <full name> <short name>: read /etc/hosts on stdin and
+# print it with the line "127.0.1.1 <full name> <short name>" (only the short
+# name when both are the same), the way Debian and Ubuntu map their own host
+# name. An existing 127.0.1.1 line is replaced (any further ones dropped); with
+# none, the line goes right after 127.0.0.1, or at the end. Everything else is
+# kept as it is.
+hosts_with_hostname() {
+    local entry="127.0.1.1 $1"
+    [[ "$2" != "$1" ]] && entry="${entry} $2"
+    awk -v entry="${entry}" '
+        { line[NR] = $0; first[NR] = $1 }
+        first[NR] == "127.0.1.1" { has = 1 }
+        first[NR] == "127.0.0.1" && !after { after = NR }
+        END {
+            for (i = 1; i <= NR; i++) {
+                if (first[i] == "127.0.1.1") {
+                    if (!done) { print entry; done = 1 }
+                    continue
+                }
+                print line[i]
+                if (!has && i == after) { print entry; done = 1 }
+            }
+            if (!done) print entry
+        }'
+}
+
 # validate_monitor_user <value>: login of the status page.
 validate_monitor_user() {
     local LC_ALL=C

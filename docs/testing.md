@@ -79,7 +79,7 @@ failure, and tests the second session, as that account, before it confirms
 the SSH hardening.
 
 What it checks: provisioning (dry run first), the closed doors (default
-account, password and root logins), `verify`, two reboots, a second
+account, password and root logins), `SERVER_HOSTNAME` (also after a reboot), `verify`, two reboots, a second
 provisioning without changes, the SSH port change (with a new session test,
 after a reboot, and the rollback when it is not confirmed), backup (init,
 run, deduplication, restore and import with every row, a single file,
@@ -134,6 +134,9 @@ database.
 - [ ] The Docker repository for this release was detected (or the script
       stopped and pointed at `--docker-fallback`).
 - [ ] Summary table: only `OK` (apart from steps skipped on purpose).
+- [ ] With `SERVER_HOSTNAME` set: `hostname` prints the short name,
+      `hostname -f` the full one, `sudo` prints no "unable to resolve host",
+      and both stay after a reboot.
 
 ### 3. Second SSH session
 

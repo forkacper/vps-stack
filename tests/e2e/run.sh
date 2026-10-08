@@ -149,6 +149,9 @@ SSH_OPTS=(-o BatchMode=yes -o IdentitiesOnly=yes -i "${KEY}"
     -o ConnectTimeout=15 -o ServerAliveInterval=15 -o LogLevel=ERROR)
 ADMIN_PORT=22
 ADMIN_PW=""
+# Set as SERVER_HOSTNAME; it needs no DNS record.
+E2E_HOSTNAME="vps-stack-e2e.example.com"
+HOSTNAME_TEST=0
 
 # ssh_as <user> <port> <command>
 ssh_as() {
@@ -347,6 +350,25 @@ step_install() {
         sed -i \"s|^ADMIN_SSH_PUBKEY_FILE=.*|ADMIN_SSH_PUBKEY_FILE=\$HOME/admin.pub|\" ~/stack.env
         sed -i 's|^ACME_EMAIL=.*|ACME_EMAIL=${EMAIL:-admin@example.com}|' ~/proxy.env
         sed -i 's|^ACME_CA=.*|ACME_CA=${STAGING_CA}|' ~/proxy.env"
+    # A version older than 0.7.0 has no SERVER_HOSTNAME: its checks are skipped.
+    if on_init "grep -q '^SERVER_HOSTNAME=' ~/stack.env"; then
+        on_init "sed -i 's|^SERVER_HOSTNAME=.*|SERVER_HOSTNAME=${E2E_HOSTNAME}|' ~/stack.env"
+        HOSTNAME_TEST=1
+    fi
+}
+
+# step_hostname <name>: SERVER_HOSTNAME is the host name, resolves, and sudo
+# does not complain about it.
+step_hostname() {
+    local out
+    if [[ "${HOSTNAME_TEST}" != "1" ]]; then
+        skip "$1: host name" "SERVER_HOSTNAME not in ${REF}"
+        return 0
+    fi
+    out="$(on_admin "hostname; hostname -f" 2>&1 | tr '\n' ' ')"
+    assert "$1: host name set" "${out}" is "${out}" "${E2E_HOSTNAME%%.*} ${E2E_HOSTNAME} "
+    out="$(as_root "true" 2>&1)"
+    assert "$1: sudo resolves the host name" "${out}" is "${out}" ""
 }
 
 step_provision() {
@@ -709,8 +731,10 @@ step_facts
 step_install
 step_provision
 step_doors
+step_hostname "Provisioning"
 verify_clean "verify after provisioning"
 step_reboot "Reboot"
+step_hostname "Reboot"
 step_idempotency
 step_ssh_port
 step_doors
