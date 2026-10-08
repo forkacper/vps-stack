@@ -1,6 +1,6 @@
 # vps-stack
 
-> **Status: 0.x. Confirmed on Ubuntu 24.04 and 26.04 (see [Verified on](#verified-on)). Use at your own risk.**
+> **Status: 0.x. Supported and tested on Ubuntu 24.04 and 26.04. Use at your own risk.**
 >
 > The scripts run as **root** and change the **SSH and firewall**
 > configuration. A mistake there can lock you out of the server. Do the first
@@ -78,29 +78,9 @@ Details: [docs/architecture.md](docs/architecture.md).
 
 ## Supported systems
 
-| System | Status | Tested by | Date | Commit |
-|---|---|---|---|---|
-| Ubuntu 26.04 LTS | target system; **tested** on a real server | forkacper | 2026-10-08 | `8637498` (0.5.0) |
-| Ubuntu 24.04 LTS | **tested** on a real server | forkacper | 2026-10-07 | `7a9915a` (0.5.0) |
-| Debian 12 / 13 | planned; the script refuses to run ("not implemented") | | | |
-| Debian 11 and older, other distributions | not supported | | | |
-
-Debian 11 is out of support: its LTS period ended on 2026-08-31
-([wiki.debian.org/LTS](https://wiki.debian.org/LTS)).
-
-On any system other than Ubuntu 24.04 / 26.04 the scripts stop before making
-any change.
-
-### Verified on
-
-This section is filled in only by the repository owner, from the report of the
-procedure described in [docs/testing.md](docs/testing.md). A system that is
-not listed here has not been confirmed on a real server.
-
-| Date | System | Provider | Commit | Result | Notes |
-|---|---|---|---|---|---|
-| 2026-10-08 | Ubuntu 26.04 LTS | OVH VPS | `8637498` (0.5.0) | OK | Automated test `tests/e2e/run.sh` (all checks passed), `ssh.socket` mode, `sudo-rs`, staging CA. No vps-stack bugs found |
-| 2026-10-07 | Ubuntu 24.04.4 LTS | OVH VPS | `7a9915a` (0.5.0) | OK | Whole procedure of docs/testing.md, `ssh.socket` mode, staging CA. Bugs found and fixed: `admin` group from cloud-init (0.4.1), apt lock held by automatic updates (0.4.2), IPv6 clients seen as the Docker gateway, status page polling with an old password, `monitor refresh` without `stack.env` (0.5.0) |
+`vps-stack` supports **Ubuntu 24.04 LTS** and **Ubuntu 26.04 LTS**, and both
+are tested on real servers. On any other system (other Ubuntu releases,
+Debian, other distributions) the scripts stop before making any change.
 
 ## Quick start
 
@@ -168,9 +148,8 @@ The full description: [docs/security-model.md](docs/security-model.md).
 ## How this project was made
 
 The code, tests and documentation in this repository were generated with the
-help of AI from a written specification prepared by the owner. The repository
-owner tests them by hand on real machines and records the results in the
-[Verified on](#verified-on) section.
+help of AI from a written specification prepared by the owner, and tested on
+real servers with the [supported systems](#supported-systems).
 
 What that means for you:
 
@@ -180,8 +159,7 @@ What that means for you:
   syntax, input validation, configuration generation and the validity of the
   Caddy configuration. **CI does not test provisioning.** The scope is
   described in [docs/testing.md](docs/testing.md).
-- Behaviour on a particular system is confirmed only when it appears in the
-  "Verified on" table.
+- Behaviour is confirmed only on the [supported systems](#supported-systems).
 
 ## FAQ
 
