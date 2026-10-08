@@ -91,9 +91,8 @@ then the unban, `monitor password`, `monitor refresh`,
 history).
 
 The report (`e2e-reports/report-<time>.md`; the directory is ignored by
-git, as it holds the server's addresses and the password) lists every check as PASS, FAIL or SKIP, the system and
-versions, and when everything passed, a row for the "Verified on" table. The
-full output is in the `log-<time>.txt` next to it. A failure of a critical
+git, as it holds the server's addresses and the password) lists every check
+as PASS, FAIL or SKIP, with the system and versions. The full output is in the `log-<time>.txt` next to it. A failure of a critical
 step (connection, provisioning, SSH port change) stops the run, so that the
 server is never left half-configured without notice.
 
@@ -266,20 +265,10 @@ With a test domain pointing at the server (`ACME_CA` set to staging):
 
 - [ ] Delete the test machine, the test restic repository and the DNS records.
 
-## Test report
+## A new system
 
-After going through the procedure, add a row below **and** in the "Verified
-on" table in [README.md](../README.md) (and fill in the test columns of the
-supported systems table). Record only what you actually did.
-
-| Date | System | Provider | Commit | Result | Notes |
-|---|---|---|---|---|---|
-| 2026-10-08 | Ubuntu 26.04 LTS (kernel 7.0, OpenSSH 10.2p1, restic 0.18.1, fail2ban 1.1.0) | OVH VPS | `8637498` (0.5.0) | OK | Automated test `tests/e2e/run.sh` (all checks passed), `ssh.socket` mode, `sudo-rs`, staging CA. No vps-stack bugs found |
-| 2026-10-07 | Ubuntu 24.04.4 LTS (OpenSSH 9.6p1, restic 0.16.4, fail2ban 1.0.2) | OVH VPS | `7a9915a` (0.5.0) | OK | Whole procedure of docs/testing.md, `ssh.socket` mode, staging CA. Bugs found and fixed: `admin` group from cloud-init (0.4.1), apt lock held by automatic updates (0.4.2), IPv6 clients seen as the Docker gateway, status page polling with an old password, `monitor refresh` without `stack.env` (0.5.0) |
-
-Result: `OK` (the whole procedure), `partial` (list the skipped steps in the
-notes) or `error` (with the issue number).
-
-Once a system has an `OK` entry, its status in `lib/os-ubuntu.sh`
-(`os_check_supported`) can be changed from `untested` to `ok`, which switches
-off the warning at start.
+A system is added to the supported ones only after the whole procedure
+above (or the automated test) has passed on a real server: then its status
+in `lib/os-ubuntu.sh` (`os_check_supported`) changes from `untested` to
+`ok`, which switches off the warning at start, and the system is listed in
+"Supported systems" in [README.md](../README.md).

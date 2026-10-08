@@ -718,10 +718,7 @@ step_reboot "Final reboot"
 [[ "${SITES}" == "1" ]] && step_history
 
 if [[ "${FAILED}" -eq 0 ]]; then
-    # shellcheck disable=SC2016  # the backticks are Markdown
-    printf '\nAll checks passed. For "Verified on":\n| %s | %s | %s | `%s` (%s) | OK | e2e test, report %s |\n' \
-        "$(date -u +%Y-%m-%d)" "$(printf '%s\n' "${FACTS[@]}" | sed -n 's/^System: //p')" "<provider>" \
-        "$(printf '%s\n' "${FACTS[@]}" | sed -n 's/^Commit: //p')" "${REF}" "$(basename "${REPORT}")" >>"${REPORT}"
+    printf '\nAll checks passed.\n' >>"${REPORT}"
 fi
 log "Done: ${FAILED} failure(s). Report: ${REPORT}"
 [[ "${FAILED}" -eq 0 ]]
