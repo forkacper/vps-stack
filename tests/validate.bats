@@ -313,3 +313,48 @@ load helpers
     run has_unsafe_chars "my-app_web:8080"
     [ "$status" -ne 0 ]
 }
+
+# --- host name --------------------------------------------------------------
+
+@test "host name: short and fully qualified names are valid" {
+    local value
+    for value in "srv1" "srv1.example.com" "vps-stack-e2e.meczify.com" "a" "1srv" "$(repeat_char a 63).example.com"; do
+        run validate_hostname "${value}"
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "host name: invalid names are rejected" {
+    local value
+    for value in "" "Srv1" "srv_1" "-srv" "srv-" "srv1." ".srv1" "srv1..example.com" "srv 1" \
+        "srv1;id" "192.168.1.1" "123" "$(repeat_char a 64)" 'srv$(id)' $'srv1\nevil'; do
+        run validate_hostname "${value}"
+        [ "$status" -ne 0 ]
+    done
+}
+
+@test "hosts: the 127.0.1.1 line is replaced, everything else kept" {
+    local input
+    input=$'127.0.0.1 localhost\n127.0.1.1 vps-1a2b3c4d.vps.ovh.net vps-1a2b3c4d\n\n# IPv6\n::1 ip6-localhost ip6-loopback'
+    run hosts_with_hostname srv1.example.com srv1 <<<"${input}"
+    [ "$status" -eq 0 ]
+    [ "$output" = $'127.0.0.1 localhost\n127.0.1.1 srv1.example.com srv1\n\n# IPv6\n::1 ip6-localhost ip6-loopback' ]
+}
+
+@test "hosts: without a 127.0.1.1 line it goes after 127.0.0.1" {
+    run hosts_with_hostname srv1 srv1 <<<$'127.0.0.1 localhost\n::1 localhost'
+    [ "$output" = $'127.0.0.1 localhost\n127.0.1.1 srv1\n::1 localhost' ]
+}
+
+@test "hosts: extra 127.0.1.1 lines are dropped, commented ones kept" {
+    run hosts_with_hostname srv1.example.com srv1 <<<$'#127.0.1.1 old\n127.0.1.1 a\n127.0.0.1 localhost\n127.0.1.1 b'
+    [ "$output" = $'#127.0.1.1 old\n127.0.1.1 srv1.example.com srv1\n127.0.0.1 localhost' ]
+}
+
+@test "hosts: an empty file gets the line, and a second run changes nothing" {
+    local once
+    run hosts_with_hostname srv1 srv1 </dev/null
+    [ "$output" = "127.0.1.1 srv1" ]
+    once="$(hosts_with_hostname srv1.example.com srv1 <<<$'127.0.0.1 localhost')"
+    [ "$(hosts_with_hostname srv1.example.com srv1 <<<"${once}")" = "${once}" ]
+}

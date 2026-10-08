@@ -62,8 +62,10 @@ ADMIN_SSH_PUBKEY_FILE=/home/ubuntu/admin.pub
 Creating a key, logging in with it, copying it and testing it are described
 step by step in [ssh-keys.md](ssh-keys.md).
 
-It is also worth putting your IP address in `FAIL2BAN_IGNOREIP`. The other
-values have sensible defaults and are described in the file.
+It is also worth putting your IP address in `FAIL2BAN_IGNOREIP`, and, if you
+want a name of your own instead of the provider's (e.g. `vps-1a2b3c4d`),
+setting `SERVER_HOSTNAME`, e.g. `srv1.example.com`. The other values have
+sensible defaults and are described in the file.
 
 In `proxy.env` set `ACME_EMAIL`: the address the certificate authority sends
 warnings to. A file lying next to `stack.env` is copied automatically.

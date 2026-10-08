@@ -125,6 +125,20 @@ check_docker() {
     esac
 }
 
+# check_hostname: the host name, whether it matches SERVER_HOSTNAME and
+# whether it resolves (otherwise sudo prints "unable to resolve host").
+check_hostname() {
+    local name
+    name="$(hostname 2>/dev/null || true)"
+    if [[ -n "${SERVER_HOSTNAME}" && "${name}" != "${SERVER_HOSTNAME%%.*}" ]]; then
+        report_add "WARN" "Host name" "${name:-unknown}, but SERVER_HOSTNAME=${SERVER_HOSTNAME} (run vps-stack provision)"
+    elif [[ -z "${name}" ]] || ! getent hosts "${name}" >/dev/null 2>&1; then
+        report_add "WARN" "Host name" "${name:-unknown} does not resolve: no line for it in /etc/hosts"
+    else
+        report_add "OK" "Host name" "$(hostname -f 2>/dev/null || printf '%s' "${name}")"
+    fi
+}
+
 check_memory_and_disk() {
     local swappiness used
     if [[ -n "$(swapon --show --noheadings 2>/dev/null)" ]]; then
@@ -318,6 +332,7 @@ main() {
     check_ufw
     check_fail2ban
     check_docker
+    check_hostname
     check_memory_and_disk
     check_ports
     check_permissions

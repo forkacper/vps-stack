@@ -24,6 +24,8 @@ STOPPED_ON_PURPOSE=0
 # Overridable only so the script can be exercised on small test machines.
 MIN_FREE_GB="${VPS_STACK_MIN_FREE_GB:-5}"
 SSHD_HARDENING_FILE="/etc/ssh/sshd_config.d/00-hardening.conf"
+CLOUD_INIT_CFG_DIR="/etc/cloud/cloud.cfg.d"
+CLOUD_INIT_HOSTNAME_FILE="${CLOUD_INIT_CFG_DIR}/99-vps-stack-hostname.cfg"
 BASE_PACKAGES=(ca-certificates curl gnupg git ufw fail2ban unattended-upgrades cron restic jq dnsutils rsync logrotate)
 
 usage() {
@@ -253,6 +255,9 @@ validate_config() {
     if [[ ! "${SWAP_SIZE}" =~ ${re_swap} ]]; then
         errors+=("SWAP_SIZE: give 0 or a size such as 2G or 512M.")
     fi
+    if [[ -n "${SERVER_HOSTNAME}" ]] && ! validate_hostname "${SERVER_HOSTNAME}" 2>/dev/null; then
+        errors+=("SERVER_HOSTNAME: '${SERVER_HOSTNAME}' is not a valid host name: lowercase letters, digits and -, e.g. srv1 or srv1.example.com. Leave it empty to keep the current name.")
+    fi
     if [[ ! "${TIMEZONE}" =~ ${re_tz} ]]; then
         errors+=("TIMEZONE: '${TIMEZONE}' contains characters that are not allowed.")
     elif [[ -d /usr/share/zoneinfo && ! -e "/usr/share/zoneinfo/${TIMEZONE}" ]]; then
@@ -344,6 +349,7 @@ Summary before any change
   SSH_PORT:                ${SSH_PORT}
   FAIL2BAN_IGNOREIP:       ${FAIL2BAN_IGNOREIP:-(empty)}
   SWAP_SIZE:               ${SWAP_SIZE}
+  SERVER_HOSTNAME:         ${SERVER_HOSTNAME:-(empty: keep $(hostname 2>/dev/null || printf 'the current name'))}
   TIMEZONE:                ${TIMEZONE}
   AUTO_REBOOT:             ${AUTO_REBOOT}
   PROXY_NETWORK:           ${PROXY_NETWORK}
@@ -373,9 +379,33 @@ step_packages() {
     report_add "OK" "System packages"
 }
 
+# set_hostname: the host name from SERVER_HOSTNAME, its line in /etc/hosts
+# (without it sudo prints "unable to resolve host") and, on cloud images, a
+# cloud-init setting that keeps both across reboots.
+set_hostname() {
+    local short="${SERVER_HOSTNAME%%.*}" content
+    content="$(hosts_with_hostname "${SERVER_HOSTNAME}" "${short}" </etc/hosts)"
+    # /etc/hosts first: sudo resolves the new name from the moment it is set.
+    write_file /etc/hosts 644 <<<"${content}"
+    if [[ "$(hostname)" != "${short}" || "$(cat /etc/hostname 2>/dev/null)" != "${short}" ]]; then
+        run hostnamectl set-hostname "${short}"
+    fi
+    if [[ -d "${CLOUD_INIT_CFG_DIR}" ]]; then
+        content="# Managed by vps-stack (provision, SERVER_HOSTNAME). Manual edits are overwritten."$'\n'
+        content+="# cloud-init would otherwise set the provider's host name and rewrite"$'\n'
+        content+="# /etc/hosts at every boot."$'\n'
+        content+="preserve_hostname: true"$'\n'"manage_etc_hosts: false"
+        write_file --no-backup "${CLOUD_INIT_HOSTNAME_FILE}" 644 <<<"${content}"
+    fi
+}
+
 step_system() {
     local current_tz content
-    step "Time zone, journald, sysctl"
+    step "Host name, time zone, journald, sysctl"
+
+    if [[ -n "${SERVER_HOSTNAME}" ]]; then
+        set_hostname
+    fi
 
     current_tz="$(timedatectl show -p Timezone --value 2>/dev/null || true)"
     if [[ "${current_tz}" != "${TIMEZONE}" ]]; then
@@ -394,7 +424,7 @@ step_system() {
     if [[ "${WRITE_FILE_CHANGED}" == "1" ]]; then
         run sysctl --system >/dev/null
     fi
-    report_add "OK" "Time zone, journald, sysctl"
+    report_add "OK" "Host name, time zone, journald, sysctl" "${SERVER_HOSTNAME:-host name unchanged}"
 }
 
 step_swap() {

@@ -109,6 +109,7 @@ The clone of the `vps-stack` repository may live somewhere other than
 | `/etc/default/ufw` | `IPV6=yes` |
 | `/etc/fail2ban/jail.local` | the `sshd` jail |
 | `/etc/apt/apt.conf.d/20auto-upgrades`, `52vps-stack-unattended-upgrades` | automatic updates |
+| `/etc/hostname`, `/etc/hosts`, `/etc/cloud/cloud.cfg.d/99-vps-stack-hostname.cfg` | host name and its `127.0.1.1` line, kept by cloud-init (only with `SERVER_HOSTNAME`) |
 | `/etc/systemd/journald.conf.d/size.conf` | journal limit of 200 MB |
 | `/etc/sysctl.d/99-vps-stack.conf` | `vm.swappiness`, `vm.vfs_cache_pressure` |
 | `/etc/docker/daemon.json` | log rotation, `live-restore` (merged with an existing file) |
