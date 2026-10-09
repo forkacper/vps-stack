@@ -30,6 +30,14 @@ BACKUP_REPO_ROOT="${VPS_STACK_BACKUP_ROOT:-/srv/backups}"
 LEGACY_RESTIC_ENV_FILE="${ETC_DIR}/restic.env"
 PROVISION_LOG_FILE="${VPS_STACK_PROVISION_LOG:-/var/log/vps-stack-provision.log}"
 BACKUP_LOG_FILE="${VPS_STACK_BACKUP_LOG:-/var/log/vps-stack-backup.log}"
+# Project directories: <root>/<project>, e.g. /srv/example-app.
+PROJECTS_ROOT="${VPS_STACK_PROJECTS_ROOT:-/srv}"
+# Deploys (lib/deploy.sh): configuration, state (previous version, history,
+# lock) and logs, each with one entry per project.
+DEPLOY_CONF_DIR="${VPS_STACK_DEPLOY_CONF_DIR:-${ETC_DIR}/deploy}"
+DEPLOY_STATE_ROOT="${VPS_STACK_DEPLOY_STATE_ROOT:-/var/lib/vps-stack-deploy}"
+DEPLOY_LOG_ROOT="${VPS_STACK_DEPLOY_LOG_ROOT:-/var/log/vps-stack-deploy}"
+SUDOERS_DIR="${VPS_STACK_SUDOERS_DIR:-/etc/sudoers.d}"
 CADDY_CONTAINER="caddy"
 PROXY_PROJECT_NAME="vps-stack-proxy"
 

@@ -11,7 +11,6 @@ source "${SCRIPT_DIR}/../lib/backup.sh"
 
 LOCK_FILE="${VPS_STACK_BACKUP_LOCK:-/run/lock/vps-stack-backup.lock}"
 CRON_FILE="/etc/cron.d/vps-stack-backup"
-PROJECTS_ROOT="${VPS_STACK_PROJECTS_ROOT:-/srv}"
 # Dumps kept in the staging directory of every hook, pruned right before the
 # snapshot. The copies live in the repository; staging only feeds it.
 STAGING_KEEP=1

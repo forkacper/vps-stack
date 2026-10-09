@@ -16,8 +16,8 @@ project
 and a command for adding domains.
 
 **What it is not:** it is not a PaaS; there is no panel, no agent, no
-automatic deployment and nothing running on the server besides Docker and one
-proxy container.
+zero-downtime deployment and nothing running on the server besides Docker and
+one proxy container.
 
 ## What it does
 
@@ -121,6 +121,7 @@ out a newer release tag) does not touch it.
 | `vps-stack remove-site <domain>` | removes a site (the file is moved aside, not deleted) |
 | `vps-stack list-sites` | lists domains, upstreams, aliases and redirects |
 | `vps-stack check-dns <domain>...` | checks that a domain points at this server |
+| `vps-stack deploy init\|run\|rollback\|status\|key` | deploys a version of a project (pull or build, migrations, healthy containers, back to the previous version on failure); `key` creates an SSH key for CI that can do nothing else |
 | `vps-stack proxy up\|down\|restart\|reload\|validate\|status\|logs\|network-ipv6` | manages the proxy container; `network-ipv6` moves an IPv4-only proxy network to IPv6 |
 | `vps-stack backup init\|run\|list\|snapshots\|restore\|export\|setup` | backup per project: set up, run, inspect, restore into a new directory, export an archive, schedule |
 | `vps-stack monitor enable <domain>\|disable\|password\|status\|refresh` | optional status page: resources, containers and 7 days of history, behind a login |
@@ -143,7 +144,9 @@ The full description: [docs/security-model.md](docs/security-model.md).
 - **The `docker` group is root.** The administrator is a member. The
   deployment account joins it only with `DEPLOY_IN_DOCKER_GROUP=true`:
   deployments are more convenient then, but a compromised deploy account means
-  a compromised server. The default is `false`.
+  a compromised server. The default is `false`, and deploys do not need it:
+  a CI gets a key that can only start one project's deploy
+  (`vps-stack deploy key`), never a shell.
 
 ## How this project was made
 
@@ -165,15 +168,16 @@ What that means for you:
 
 ### Why not Coolify, Dokku, CapRover, Kamal or Ansible?
 
-Each of these tools does more than `vps-stack`; above all they automate
-deployments, which are not covered here at all. If you need that, pick one of
+Each of these tools does more than `vps-stack`: zero-downtime deployments,
+preview environments, many servers, a panel. If you need that, pick one of
 them.
 
 `vps-stack` has a different goal: as few moving parts as possible on one small
 server maintained by one person. No agent or panel runs on the server, the
 whole "platform" is bash scripts you can read in an evening, and projects stay
-plain Docker Compose files. The price is the lack of comfort: you deploy
-yourself (`git pull` and `docker compose up -d`).
+plain Docker Compose files. The price is the lack of comfort: a deploy is
+one command that replaces the containers with a short interruption
+([docs/deploying.md](docs/deploying.md)), and nothing more.
 
 Ansible would be the right choice for many servers. For a single server,
 idempotent bash gives the same result without another layer to learn. The
@@ -208,6 +212,7 @@ releases: [docs/releasing.md](docs/releasing.md).
 - [docs/security-model.md](docs/security-model.md): what it protects against and what it does not
 - [docs/adding-sites.md](docs/adding-sites.md): domains, DNS, certificates
 - [docs/project-contract.md](docs/project-contract.md): requirements for projects
+- [docs/deploying.md](docs/deploying.md): deploying a version, rollback and a restricted SSH key for CI
 - [docs/backup-restore.md](docs/backup-restore.md): backup and restore
 - [docs/ssh-recovery.md](docs/ssh-recovery.md): what to do when SSH is locked
 - [docs/monitoring.md](docs/monitoring.md): the minimum of monitoring and the optional status page

@@ -83,12 +83,15 @@ a newer release tag, [releasing.md](releasing.md)) overwrites no settings, and
 │                          not part of any backup
 ├── sites/                 Caddy files, one per site: <domain>.caddy
 │   └── .removed/          files of removed sites
+├── deploy/                deploy configuration (700): <project>.env (600)
 └── hooks/<project>/       backup hooks of every project (700)
 /srv/data/caddy/data       certificates and the ACME account key
 /srv/data/caddy/config     Caddy state
 /srv/backup-staging/<project>/  the newest dump of every hook, before the snapshot (700)
 /srv/backups/<group>/      restic repository of every group (700), by default
 /srv/<project>/            project directories (clones of their repositories)
+/var/lib/vps-stack-deploy/<project>/  previous version, deploy history and lock (700)
+/var/log/vps-stack-deploy/<project>/  one log per deploy (750)
 ```
 
 A project directory is created by hand, owned by `DEPLOY_USER`:
