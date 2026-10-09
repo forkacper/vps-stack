@@ -179,6 +179,13 @@ the hook can name a plain, stable path.
 The dump is made by a **dedicated database user** with minimal privileges, not
 by the database root and not by the application's user.
 
+A hook runs `docker compose` in the project directory. When the project's
+compose file is not called `compose.yaml` or `docker-compose.yml` (e.g.
+`docker-compose.prod.yml`), Compose finds nothing there and the backup fails:
+name the file in the hook with
+`export COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"`. For deploys
+the same file is named with `deploy init --compose-file`.
+
 Details of the hook contract: [backup-restore.md](backup-restore.md).
 
 ## 9. Health endpoint

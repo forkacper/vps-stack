@@ -119,6 +119,16 @@ User files belong in a bind mount below the project directory (e.g.
 `./storage/uploads`), not in a named Docker volume: the path is then plain
 and stable ([project-contract.md](project-contract.md)).
 
+The database hook runs `docker compose` in the project directory, which
+finds only `compose.yaml` and `docker-compose.yml` (and their `.yml`/`.yaml`
+variants). A project with a differently named file, e.g.
+`docker-compose.prod.yml`, has to name it in the hook, otherwise every backup
+of the project fails with "no configuration file provided":
+
+```bash
+export COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
+```
+
 ## Restoring
 
 `vps-stack backup restore` always unpacks into a **new or empty directory**
