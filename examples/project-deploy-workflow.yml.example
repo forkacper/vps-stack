@@ -1,0 +1,136 @@
+# Example GitHub Actions workflow for a PROJECT hosted on a vps-stack server
+# (not for vps-stack itself): tests, image build and an automatic deploy over
+# SSH. It is examples/project-build-workflow.yml.example plus the deploy job;
+# use that one if you prefer to deploy by hand. Copy it into the project's
+# repository as .github/workflows/deploy.yml. Application-specific places are
+# marked TODO(user).
+#
+# What it does:
+#   - pull request: runs the tests and builds the image; nothing is pushed
+#     and nothing is deployed;
+#   - push to main: runs the tests, builds the image, pushes it to the GitHub
+#     Container Registry as ghcr.io/<owner>/<repository>:<commit SHA, 12
+#     characters> and then asks the server to deploy that tag.
+#
+# One-time setup on the server (docs/deploying.md):
+#   1. /srv/example-app holds the project's compose file and .env
+#      (examples/project-compose.yml.example).
+#   2. For a private package: sudo docker login ghcr.io with a personal
+#      access token that has the read:packages scope only.
+#   3. sudo vps-stack deploy init example-app --migrate "app <command>"
+#   4. sudo vps-stack deploy key example-app --host <server address>
+#      and paste the five values it prints into the repository's secrets:
+#      DEPLOY_HOST, DEPLOY_PORT, DEPLOY_USER, DEPLOY_KNOWN_HOSTS and
+#      DEPLOY_SSH_KEY.
+#
+# What the key in the secrets can do: start the deploy of a tag of
+# example-app, and nothing else. No shell, no other command, no forwarding.
+# A leaked secret lets someone redeploy a tag; it does not give them the
+# server. It does not limit people who can push to main: their code is what
+# gets deployed.
+#
+# A second deploy started while one is running is refused by the server and
+# fails its job; the concurrency group below makes runs wait instead.
+#
+# The server pulls the image, runs the migrations, replaces the containers
+# and waits until they are healthy; when that fails it starts the previous
+# version again and the deploy job fails.
+#
+# Rollback, on the server: sudo vps-stack deploy rollback example-app
+# Or: Actions → the run of the version you want → "Re-run jobs" → deploy.
+# A rollback does not undo database migrations.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.ref }}
+      # Cancel superseded runs of a pull request, never a build of main.
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+      # Pushing to ghcr.io with GITHUB_TOKEN. Pull requests from forks get a
+      # read-only token regardless, and the push step runs on main only.
+      packages: write
+    outputs:
+      tag: ${{ steps.image.outputs.tag }}
+    steps:
+      # Pinned to the commit of the v7.0.1 tag, the same as in the vps-stack
+      # CI. Update it the same way: resolve the tag through the GitHub API.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Tests
+        run: |
+          # TODO(user): the project's test command, e.g. `make test`.
+          echo "Replace this step with the project's tests." >&2
+          exit 1
+
+      - name: Image name
+        id: image
+        run: |
+          # The registry requires lowercase names; owners and repositories
+          # on GitHub may contain capitals.
+          printf 'ref=ghcr.io/%s:%s\n' "${GITHUB_REPOSITORY,,}" "${GITHUB_SHA::12}" >>"${GITHUB_OUTPUT}"
+          printf 'tag=%s\n' "${GITHUB_SHA::12}" >>"${GITHUB_OUTPUT}"
+
+      - name: Build
+        env:
+          IMAGE: ${{ steps.image.outputs.ref }}
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${IMAGE}" .
+
+      - name: Push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE: ${{ steps.image.outputs.ref }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "${REGISTRY_TOKEN}" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          docker push "${IMAGE}"
+          docker logout ghcr.io
+          printf '## Image\n\n    %s\n' "${IMAGE}" >>"${GITHUB_STEP_SUMMARY}"
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # This job checks out no code and needs nothing from GitHub.
+    permissions: {}
+    # One deploy at a time, in the order of the pushes. Never cancelled: the
+    # server finishes a deploy it has started either way.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      - name: Deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          install -d -m 700 ~/.ssh
+          (umask 077 && printf '%s\n' "${DEPLOY_SSH_KEY}" >~/.ssh/deploy_key)
+          printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" >~/.ssh/known_hosts
+          # The tag is all this key can say: on the server it is tied to
+          # the deploy of this one project. The output of the deploy appears
+          # here, and a failed deploy fails this job.
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -p "${DEPLOY_PORT}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" "${TAG}"
+          printf '## Deployed\n\n    %s\n' "${TAG}" >>"${GITHUB_STEP_SUMMARY}"

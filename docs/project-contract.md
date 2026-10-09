@@ -5,7 +5,8 @@ satisfy to work well with `vps-stack`. The examples use a fictional project
 called `example-app`. A skeleton Compose file:
 `examples/project-compose.yml.example`. A GitHub Actions workflow that builds
 the project's image outside the server, with the deploy and rollback steps:
-`examples/project-build-workflow.yml.example`.
+`examples/project-build-workflow.yml.example`; with an automatic deploy over
+SSH: `examples/project-deploy-workflow.yml.example`.
 
 ## 1. The shared network is external
 

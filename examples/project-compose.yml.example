@@ -27,10 +27,11 @@ services:
   app:
     # TODO(user): application image. Configure trusted proxies in the
     # application (the Docker network addresses), otherwise HTTPS detection,
-    # session cookies and OAuth callback URLs may be wrong.
+    # session cookies and OAuth callback URLs may be wrong. Settings for
+    # common frameworks: docs/project-contract.md, section 5.
     # Built and pushed by examples/project-build-workflow.yml.example. The
     # tag comes from APP_TAG in .env, so a deploy or a rollback is a change
-    # of one line there.
+    # of one line there, which `vps-stack deploy` makes.
     image: ghcr.io/example-owner/example-app:${APP_TAG:?set APP_TAG in .env}
     restart: unless-stopped
     mem_limit: 512m
@@ -39,7 +40,15 @@ services:
       - internal
     depends_on:
       - db
-    # TODO(user): application health endpoint for external monitoring.
+    # TODO(user): application health endpoint for external monitoring, and
+    # a healthcheck that uses it: `vps-stack deploy` waits for it before a
+    # release counts as successful (docs/deploying.md). For example:
+    # healthcheck:
+    #   test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+    #   interval: 10s
+    #   timeout: 3s
+    #   retries: 5
+    #   start_period: 20s
 
   db:
     # TODO(user): database image pinned to a specific version tag.
