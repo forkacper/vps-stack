@@ -18,24 +18,19 @@
 #   docker login ghcr.io
 #
 # Deploy on the server, as the administrator (the summary of every workflow
-# run prints these commands with the right tag):
-#   cd /srv/example-app
-#   sed -i 's/^APP_TAG=.*/APP_TAG=<tag>/' .env
-#   docker compose pull
-#   docker compose run --rm app <migration command>   # TODO(user), if any
-#   docker compose up -d
+# run prints the command with the right tag; one-time setup:
+# sudo vps-stack deploy init example-app, docs/deploying.md):
+#   sudo vps-stack deploy run example-app <tag>
 #
-# Rollback: the same commands with the previous tag. A rollback does not undo
-# database migrations, so keep migrations backwards compatible (add a column
-# in one release, remove the old one in a later release). Before a risky
-# migration run: sudo vps-stack backup run
+# Rollback: sudo vps-stack deploy rollback example-app
+# A rollback does not undo database migrations, so keep migrations backwards
+# compatible (add a column in one release, remove the old one in a later
+# release). Before a risky migration run: sudo vps-stack backup run
 #
-# Automatic deployment from GitHub is deliberately not included: it needs an
-# SSH key stored in the GitHub secrets, and if that key can run docker, a
-# leaked secret means root on the server (docs/security-model.md, the docker
-# group). If you add it later, give it a dedicated key restricted with
-# command="..." in authorized_keys that runs one deploy script accepting only
-# a tag.
+# This workflow does not deploy. For an automatic deploy after the push, use
+# examples/project-deploy-workflow.yml.example instead: the same build plus
+# a job that asks the server to deploy the tag, with an SSH key that can do
+# nothing else (`vps-stack deploy key`).
 
 name: Build
 
@@ -102,9 +97,6 @@ jobs:
             printf '## Image\n\n    %s\n\n' "${IMAGE}"
             printf '## Deploy on the server\n\n'
             printf '```bash\n'
-            printf 'cd /srv/example-app\n'
-            printf "sed -i 's/^APP_TAG=.*/APP_TAG=%s/' .env\n" "${TAG}"
-            printf 'docker compose pull\n'
-            printf 'docker compose up -d\n'
+            printf 'sudo vps-stack deploy run example-app %s\n' "${TAG}"
             printf '```\n'
           } >>"${GITHUB_STEP_SUMMARY}"
