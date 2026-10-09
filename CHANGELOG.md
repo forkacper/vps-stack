@@ -27,6 +27,10 @@ incompatible way.
   command, so the deployment account does not have to be in the `docker`
   group
   ([docs/deploying.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/deploying.md#a-key-for-the-ci)).
+- Project contract: what `vps-stack deploy` needs from a project and
+  trusted proxy settings for nginx, Laravel, Symfony, Django, Rails and
+  Express
+  ([docs/project-contract.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/project-contract.md)).
 - Status page: the last successful backup of every backup group, with the
   same thresholds as `verify` (warning after 13 hours, error after 48)
   ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/monitoring.md#5-optional-the-built-in-status-page)).

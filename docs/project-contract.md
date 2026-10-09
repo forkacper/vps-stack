@@ -79,7 +79,72 @@ with `http://`, session cookies without the `Secure` flag, wrong OAuth
 callback URLs, the proxy's address instead of the client's in logs and rate
 limits.
 
-<!-- TODO(user): how trusted proxies are configured depends on the application framework; fill this in for your projects. -->
+The proxies to trust are the private address ranges, which is where Docker
+networks live: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` and, because
+the `proxy` network has IPv6, `fc00::/7`. Do not list single addresses:
+containers get new ones when they are recreated. Trusting these ranges is
+safe because the application is reachable only through the proxy (sections 2
+and 3).
+
+**The project's web server (nginx).** In front of PHP-FPM nothing is needed:
+request headers reach the application as they came. In front of an
+application server (`proxy_pass`), pass them on instead of replacing them:
+
+```nginx
+proxy_set_header Host              $host;
+proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;   # not $scheme
+```
+
+**Laravel** (11 and newer), `bootstrap/app.php`:
+
+```php
+->withMiddleware(function (Middleware $middleware) {
+    $middleware->trustProxies(at: [
+        '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7',
+    ]);
+})
+```
+
+In Laravel 10 and older the same list goes into `$proxies` of
+`App\Http\Middleware\TrustProxies`.
+
+**Symfony**, `config/packages/framework.yaml`:
+
+```yaml
+framework:
+  trusted_proxies: 'private_ranges'
+  trusted_headers: ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port']
+```
+
+**Django**, `settings.py`. Django has no list of trusted proxies; these
+settings believe the headers from anyone, which is acceptable only because
+the application is not reachable in any other way:
+
+```python
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+```
+
+With gunicorn behind nginx also start it with `--forwarded-allow-ips` naming
+the ranges above. The client address is the first entry of
+`X-Forwarded-For`; `REMOTE_ADDR` is the proxy.
+
+**Rails** trusts the private ranges by default
+(`config.action_dispatch.trusted_proxies`), so `request.remote_ip` and
+`request.ssl?` work as they are. With `config.force_ssl = true` nothing more
+is needed.
+
+**Express**:
+
+```js
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+```
+
+For any other framework look for "trusted proxies" or "forwarded headers" in
+its documentation and check the result: log in over HTTPS, then look at the
+client address in the application log and at the `Secure` flag of the
+session cookie.
 
 ## 6. A consistent upload size limit
 
