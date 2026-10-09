@@ -29,6 +29,10 @@ set -euo pipefail
 
 # The directory holding the project's docker-compose.yml is PROJECT_DIR.
 # Set it here only if the project lives somewhere else than /srv/<project>.
+# TODO(user): only when the project's compose file has another name than
+# compose.yaml or docker-compose.yml. Without this, `docker compose` below
+# finds no configuration and every backup of the project fails.
+# export COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
 # TODO(user): name of the database service in the project's compose file
 DB_SERVICE="db"
 # TODO(user): database name
