@@ -169,6 +169,9 @@ swap, firewall, Docker and the proxy have to come up on their own.
   project ([backup-restore.md](backup-restore.md)).
 - **Monitoring.** The minimum is an external uptime check:
   [monitoring.md](monitoring.md).
+- **Deploys** (optional): `sudo vps-stack deploy init <project>`, then one
+  command per release, by hand or from a CI with an SSH key that can do
+  nothing else: [deploying.md](deploying.md).
 - **Changing the SSH port** (optional): `sudo vps-stack ssh-port <port>`.
   If your provider has a firewall in its panel (a cloud firewall, security
   groups), open the new port **there first**: `vps-stack` changes only ufw.

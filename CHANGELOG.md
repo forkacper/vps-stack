@@ -11,6 +11,22 @@ incompatible way.
 
 ### Added
 
+- `vps-stack deploy`: releases a version of a project with one command.
+  `deploy init <project>` sets it up, `deploy run <project> <version>` pulls
+  the image (mode `image`) or checks out the commit and builds it (mode
+  `build`), runs the migrations, replaces the containers and waits until
+  they are healthy; when a step fails the previous version is put back and
+  the command exits with an error. One deploy per project at a time, an
+  optional backup first, a log of every run. `deploy rollback <project>`
+  returns to the previous version, `deploy status` shows what is deployed
+  and how the last deploy ended
+  ([docs/deploying.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/deploying.md)).
+- `vps-stack deploy key <project>` creates an SSH key for a CI that can only
+  start the deploy of that project, naming a version: no shell, no
+  forwarding, no other command. It works through a sudoers rule for that one
+  command, so the deployment account does not have to be in the `docker`
+  group
+  ([docs/deploying.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/deploying.md#a-key-for-the-ci)).
 - Status page: the last successful backup of every backup group, with the
   same thresholds as `verify` (warning after 13 hours, error after 48)
   ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/v0.7.0/docs/monitoring.md#5-optional-the-built-in-status-page)).

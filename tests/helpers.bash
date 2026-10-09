@@ -18,6 +18,8 @@ source "${REPO_ROOT}/lib/validate.sh"
 source "${REPO_ROOT}/lib/monitor.sh"
 # shellcheck source=lib/backup.sh
 source "${REPO_ROOT}/lib/backup.sh"
+# shellcheck source=lib/deploy.sh
+source "${REPO_ROOT}/lib/deploy.sh"
 
 # render <domain> <upstream> [aliases] [redirects] [max_body]
 render() {

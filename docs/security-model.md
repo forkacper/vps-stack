@@ -43,7 +43,19 @@ password pass straight through it.
 host's file system and take over the server. The administrator is always in
 this group. The deployment account joins it only with
 `DEPLOY_IN_DOCKER_GROUP=true`; a leak of its SSH key then means the whole
-server is compromised.
+server is compromised. A CI never gets that key and the deployment account
+does not need the group for deploys: `vps-stack deploy key` creates a key
+that can only start the deploy of a single project, through a sudoers rule
+for that one command ([deploying.md](deploying.md)).
+
+**People who can push to a deployed branch.** A deploy key limits what a
+leaked CI secret is worth. It does not limit whoever can push to the branch
+that is deployed: their code becomes the image that runs on the server.
+
+**Whoever can edit a project's compose file.** `vps-stack deploy` starts it
+as root. If the deployment account owns the project directory, a shell on
+that account is equivalent to root, with or without the `docker` group
+([deploying.md](deploying.md)).
 
 **Ports published by Docker bypass ufw.** `ports: "3306:3306"` in a Compose
 file exposes the database to the internet despite the firewall. `check-ports`

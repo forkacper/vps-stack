@@ -45,11 +45,12 @@ jobs:
           .github/scripts/release-notes.sh "${version}" >/dev/null
           grep -qx '## \[Unreleased\]' CHANGELOG.md
 
-      # The status page tests need jq, which the bats image does not ship.
+      # The status page tests need jq and the deploy tests (mode build) need
+      # git; the bats image ships neither.
       - name: bats
         run: |
           docker run --rm -v "${PWD}:/code:ro" --entrypoint sh bats/bats:1.14.0 \
-            -c 'apk add --no-cache jq >/dev/null && bats tests/'
+            -c 'apk add --no-cache jq git >/dev/null && bats tests/'
 
       # The fixture holds Caddy access log lines: failed logins, requests
       # without credentials, a successful login and two injection attempts

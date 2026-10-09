@@ -232,9 +232,10 @@ In `stack.env`:
 DEPLOY_SSH_PUBKEY_FILE=/home/ubuntu/deploy.pub
 ```
 
-If the key is meant for an automated system that cannot type a passphrase,
-create it without one and keep the private key only in that system's secret
-store.
+This key gives a full shell on the deployment account. Do not put it into a
+CI: for a pipeline that only has to deploy, create a key that can start the
+deploy of one project and nothing else, with
+`sudo vps-stack deploy key <project>` ([deploying.md](deploying.md)).
 
 ## 9. Your IP address for fail2ban (optional)
 

@@ -129,6 +129,27 @@ network too**. Network isolation is one layer; the password is a second one,
 in case the first fails (e.g. a container attached to the wrong network by
 mistake).
 
+## 11. Ready for `vps-stack deploy`
+
+A project that is deployed with `vps-stack deploy` (by hand or from a CI)
+brings no script for it. It provides:
+
+- a **Dockerfile**;
+- a compose file in which the **tag of the application image comes from a
+  variable** in `.env`, `APP_TAG` by default:
+
+  ```yaml
+  image: ghcr.io/example-owner/example-app:${APP_TAG:?set APP_TAG in .env}
+  ```
+
+- **healthchecks** on the services that matter, so that a deploy can tell a
+  working release from one that only started;
+- the **migration command**, as plain words (`php artisan migrate --force`),
+  with migrations that stay compatible with the previous version of the
+  code.
+
+Details: [deploying.md](deploying.md).
+
 ## Checklist
 
 - [ ] the `proxy` network as `external: true`
@@ -143,3 +164,5 @@ mistake).
 - [ ] user files in a bind mount below the project directory
 - [ ] a health endpoint wired into monitoring
 - [ ] passwords on auxiliary services
+- [ ] the image tag from a variable in `.env`, healthchecks and a migration
+      command, for `vps-stack deploy`

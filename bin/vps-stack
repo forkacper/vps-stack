@@ -33,6 +33,7 @@ Sites:
 Services:
   proxy          up | down | restart | reload | validate | status | logs | network-ipv6
   backup         init | run | list | snapshots | restore | export | setup
+  deploy         init | run | rollback | status | key
   monitor        optional status page: enable | disable | password | status
 
 Other:
@@ -47,7 +48,7 @@ main() {
     local command="${1:-help}"
     [[ $# -gt 0 ]] && shift
     case "${command}" in
-        provision | ssh-port | add-site | remove-site | list-sites | check-dns | check-ports | verify | proxy | backup | monitor)
+        provision | ssh-port | add-site | remove-site | list-sites | check-dns | check-ports | verify | proxy | backup | deploy | monitor)
             exec "${SCRIPTS_DIR}/${command}.sh" "$@"
             ;;
         version | --version | -V)

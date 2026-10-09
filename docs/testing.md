@@ -12,6 +12,7 @@ without a server:
 | `bats tests/render.bats` | generation of site files and rejection of injection attempts |
 | `bats tests/monitor.bats` | status page: logins, hashes, IP addresses, site file, ban list, `status.json` built only from the allowed fields, backup states |
 | `bats tests/backup.bats` | backup groups: names, paths, the order of groups, the last successful backup from the log and its age state, restore targets, export formats, staging pruning |
+| `bats tests/deploy.bats` | deploys: names, versions and configuration values, the tag line of `.env`, the restricted `authorized_keys` line and sudoers rule, what a deploy key may ask for, and `deploy init`, `run`, `rollback` and `status` against a fake `docker` (order of steps, going back on failure, lock, history) |
 | `bats tests/release.bats` | release notes taken from `CHANGELOG.md`, refusal of relative links, `VERSION` format |
 | version and changelog | `VERSION` is `MAJOR.MINOR.PATCH`, has its `CHANGELOG.md` section, and `## [Unreleased]` exists |
 | `fail2ban-regex` | the status page filter on `tests/fixtures/monitor-access.log`: failed logins match, requests without credentials and injection attempts do not |
@@ -25,7 +26,8 @@ verifies that the tag, `VERSION` and the changelog agree, and creates the
 GitHub release ([releasing.md](releasing.md)).
 
 **CI does not test provisioning.** It runs neither `provision`, `ssh-port`,
-`backup` nor `verify`. Everything that depends on systemd, sshd, ufw,
+`backup`, `deploy key` nor `verify`, and `deploy run` only against a fake
+`docker`. Everything that depends on systemd, sshd, ufw,
 fail2ban, a real Docker on the host and a real restic repository can only be
 confirmed by hand, on a real machine, with the procedure below.
 
