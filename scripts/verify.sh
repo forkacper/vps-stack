@@ -9,6 +9,10 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 source "${SCRIPT_DIR}/../lib/os-detect.sh"
 # shellcheck source=lib/backup.sh
 source "${SCRIPT_DIR}/../lib/backup.sh"
+# shellcheck source=lib/validate.sh
+source "${SCRIPT_DIR}/../lib/validate.sh"
+# shellcheck source=lib/deploy.sh
+source "${SCRIPT_DIR}/../lib/deploy.sh"
 
 usage() {
     cat <<USAGE
@@ -277,6 +281,30 @@ check_backup() {
     fi
 }
 
+# check_deploy: one row per project with a deploy set up, from its history.
+# A failed deploy is a warning, not an error: the previous version was put
+# back, and what needs attention is the release, not the server.
+check_deploy() {
+    local project history last ok when result version
+    while IFS= read -r project; do
+        [[ -n "${project}" ]] || continue
+        history="$(deploy_history_file "${project}")"
+        last="$(deploy_last "${history}")"
+        if [[ -z "${last}" ]]; then
+            report_add "OK" "Deploy: ${project}" "set up, nothing deployed yet"
+            continue
+        fi
+        read -r when result _ version <<<"${last}"
+        if [[ "${result}" == "DEPLOY_OK" ]]; then
+            report_add "OK" "Deploy: ${project}" "${version}, deployed ${when}"
+            continue
+        fi
+        ok="$(deploy_last_ok "${history}")"
+        ok="${ok##* }"
+        report_add "WARN" "Deploy: ${project}" "the last deploy FAILED (${version}, ${when}); running: ${ok:-no version deployed by vps-stack}; logs: $(deploy_log_dir "${project}")/"
+    done < <(deploy_projects)
+}
+
 # check_monitor: only when the optional status page is enabled.
 check_monitor() {
     local status_file="${MONITOR_RUN_DIR}/status.json" age
@@ -337,6 +365,7 @@ main() {
     check_ports
     check_permissions
     check_backup
+    check_deploy
     check_monitor
 
     report_print

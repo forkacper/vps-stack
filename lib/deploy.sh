@@ -335,3 +335,10 @@ deploy_last() {
     [[ -r "$1" ]] || return 0
     awk '($2 == "DEPLOY_OK" || $2 == "DEPLOY_FAILED") && NF == 4 { last = $0 } END { if (last != "") print last }' "$1"
 }
+
+# deploy_last_ok <history file>: print the newest successful deploy,
+# "<timestamp> DEPLOY_OK <project> <version>": the version that runs.
+deploy_last_ok() {
+    [[ -r "$1" ]] || return 0
+    awk '$2 == "DEPLOY_OK" && NF == 4 { last = $0 } END { if (last != "") print last }' "$1"
+}

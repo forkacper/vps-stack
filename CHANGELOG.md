@@ -9,6 +9,17 @@ incompatible way.
 
 ## [Unreleased]
 
+### Added
+
+- `verify` has a row for every project deployed with `vps-stack deploy`: the
+  version and the time of the last deploy, and a warning when the last
+  deploy failed.
+- Status page: a "Deploys" table with the version that runs and the result
+  of the last deploy of every project
+  ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/master/docs/monitoring.md#5-optional-the-built-in-status-page)).
+  On a server with the status page enabled, run once after updating:
+  `sudo vps-stack monitor refresh` (it restarts the collector).
+
 ### Changed
 
 - `deploy run` removes the images of old versions after a successful deploy.

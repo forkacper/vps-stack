@@ -254,8 +254,8 @@ STATS=$'example-app-web|0.05%|10.86MiB / 128MiB|8.48%\nexample-app-db|1.20%|525.
     host="$(monitor_host_json "${PROC}" "vps-1" 2 "" 1 1 false)"
     containers="$(monitor_containers_json "${INSPECT}" "${STATS}")"
     json="$(monitor_status_json "2026-10-07T16:10:00Z" 10 true "${host}" "${containers}")"
-    [ "$(jq -c 'keys' <<<"${json}")" = '["backups","containers","docker_available","generated_at","host","interval_seconds","version"]' ]
-    [ "$(jq -c '[.version, .interval_seconds, .docker_available, (.containers | length), .backups]' <<<"${json}")" = "[1,10,true,3,[]]" ]
+    [ "$(jq -c 'keys' <<<"${json}")" = '["backups","containers","deploys","docker_available","generated_at","host","interval_seconds","version"]' ]
+    [ "$(jq -c '[.version, .interval_seconds, .docker_available, (.containers | length), .backups, .deploys]' <<<"${json}")" = "[1,10,true,3,[],[]]" ]
 }
 
 @test "backups json: groups with their state, in the given order" {
@@ -282,6 +282,20 @@ STATS=$'example-app-web|0.05%|10.86MiB / 128MiB|8.48%\nexample-app-db|1.20%|525.
     backups="$(monitor_backups_json "system|2026-10-08T06:15:09Z|ok|0")"
     run monitor_status_json "2026-10-08T06:20:00Z" 10 true "${host}" "[]" "${backups}"
     [ "$(jq -c '.backups | map(.group)' <<<"${output}")" = '["system"]' ]
+}
+
+@test "deploys json: projects with their state; malformed lines are dropped" {
+    local rows host
+    rows=$'blog|never|||\nshop|failed|2026-10-09T10:00:00Z|v3|v2\nweb|ok|2026-10-08T10:00:00Z|v2|v2\nbad|broken|x|y|z\nshort|ok|x\n'
+    run monitor_deploys_json "${rows}"
+    [ "$status" -eq 0 ]
+    [ "$(jq -c '.' <<<"${output}")" = '[{"project":"blog","state":"never","last_at":null,"last_version":null,"running":null},{"project":"shop","state":"failed","last_at":"2026-10-09T10:00:00Z","last_version":"v3","running":"v2"},{"project":"web","state":"ok","last_at":"2026-10-08T10:00:00Z","last_version":"v2","running":"v2"}]' ]
+
+    run monitor_deploys_json ""
+    [ "$(jq -c . <<<"${output}")" = "[]" ]
+    host="$(monitor_host_json "${PROC}" "vps-1" 2 "" 1 1 false)"
+    run monitor_status_json "2026-10-09T10:05:00Z" 10 true "${host}" "[]" "[]" "$(monitor_deploys_json "${rows}")"
+    [ "$(jq -c '.deploys | map(.project)' <<<"${output}")" = '["blog","shop","web"]' ]
 }
 
 @test "docker formats: no field outside the allow list is requested" {

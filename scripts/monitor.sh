@@ -13,6 +13,8 @@ source "${SCRIPT_DIR}/../lib/validate.sh"
 source "${SCRIPT_DIR}/../lib/monitor.sh"
 # shellcheck source=lib/backup.sh
 source "${SCRIPT_DIR}/../lib/backup.sh"
+# shellcheck source=lib/deploy.sh
+source "${SCRIPT_DIR}/../lib/deploy.sh"
 
 SERVICE_NAME="vps-stack-monitor"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -198,11 +200,31 @@ backup_lines() {
     done < <(backup_groups)
 }
 
+# deploy_lines: one line per project with a deploy set up for
+# monitor_deploys_json, from the deploy history. Nothing else is read.
+deploy_lines() {
+    local project history last ok state when result version
+    while IFS= read -r project; do
+        history="$(deploy_history_file "${project}")"
+        last="$(deploy_last "${history}")"
+        ok="$(deploy_last_ok "${history}")"
+        state="never"
+        when=""
+        version=""
+        if [[ -n "${last}" ]]; then
+            read -r when result _ version <<<"${last}"
+            state="failed"
+            [[ "${result}" == "DEPLOY_OK" ]] && state="ok"
+        fi
+        printf '%s|%s|%s|%s|%s\n' "${project}" "${state}" "${when}" "${version}" "${ok##* }"
+    done < <(deploy_projects)
+}
+
 # collect_once: write status.json. Every step is checked explicitly: the
 # loop calls this in a context where `set -e` does not apply.
 collect_once() {
     local total idle cpu="" disk_total disk_used reboot=false docker_ok=false
-    local ids inspect="" stats="" host containers backups json tmp
+    local ids inspect="" stats="" host containers backups deploys json tmp
 
     read -r total idle < <(monitor_cpu_sample /proc/stat) || return 1
     if [[ -z "${PREV_CPU_TOTAL}" ]]; then
@@ -234,7 +256,8 @@ collect_once() {
     host="$(monitor_host_json /proc "$(uname -n)" "$(nproc)" "${cpu}" "${disk_total}" "${disk_used}" "${reboot}")" || return 1
     containers="$(monitor_containers_json "${inspect}" "${stats}")" || return 1
     backups="$(monitor_backups_json "$(backup_lines)")" || return 1
-    json="$(monitor_status_json "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${INTERVAL}" "${docker_ok}" "${host}" "${containers}" "${backups}")" || return 1
+    deploys="$(monitor_deploys_json "$(deploy_lines)")" || return 1
+    json="$(monitor_status_json "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${INTERVAL}" "${docker_ok}" "${host}" "${containers}" "${backups}" "${deploys}")" || return 1
 
     # Written next to the target and renamed: a reader never sees half a
     # file, and the directory mount in Caddy sees the new file at once.
@@ -483,8 +506,9 @@ Status page
   Login:     ${user} (the password is generated and shown once at the end)
   Shows:     CPU, memory, swap, disk, load; containers with image, state,
              health, restarts, CPU and memory; the last successful backup
-             of every backup group. Never environment variables, labels,
-             mounts, ports, logs or backup repositories.
+             of every backup group; the version and the last deploy of
+             every project deployed with vps-stack. Never environment
+             variables, labels, mounts, ports, logs or backup repositories.
   Protects:  login and password; fail2ban bans an address after 5 failed
              logins in 10 minutes, on the status page only.
   Changes:   a collector service (${SERVICE_NAME}), a site file, a fail2ban jail,

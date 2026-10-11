@@ -159,8 +159,28 @@ monitor_backups_json() {
             }]'
 }
 
+# monitor_deploys_json <lines>: the "deploys" array from lines
+# "<project>|<state>|<time of the last deploy>|<its version>|<running version>",
+# one per project with a deploy set up. The state is ok, failed or never.
+# Read from the deploy history only: nothing from a project's .env or its
+# deploy configuration reaches status.json.
+monitor_deploys_json() {
+    jq -n --arg lines "${1:-}" '
+        def text: if . == "" then null else . end;
+        [$lines | split("\n")[] | select(length > 0) | split("|") | select(length == 5)
+            | select(.[1] == "ok" or .[1] == "failed" or .[1] == "never")
+            | {
+                project: .[0],
+                state: .[1],
+                last_at: (.[2] | text),
+                last_version: (.[3] | text),
+                running: (.[4] | text)
+            }]'
+}
+
 # monitor_status_json <generated at> <interval> <docker available: true|false>
 #                     <host json> <containers json> [backups json]
+#                     [deploys json]
 monitor_status_json() {
     jq -n \
         --arg generated_at "$1" \
@@ -168,7 +188,8 @@ monitor_status_json() {
         --arg docker "$3" \
         --argjson host "$4" \
         --argjson containers "$5" \
-        --argjson backups "${6:-[]}" '
+        --argjson backups "${6:-[]}" \
+        --argjson deploys "${7:-[]}" '
         {
             version: 1,
             generated_at: $generated_at,
@@ -176,7 +197,8 @@ monitor_status_json() {
             docker_available: ($docker == "true"),
             host: $host,
             containers: $containers,
-            backups: $backups
+            backups: $backups,
+            deploys: $deploys
         }'
 }
 

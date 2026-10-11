@@ -245,6 +245,34 @@ function renderBackups(backups, generatedAt) {
         (problems > 0 ? ` · ${problems} need attention` : "");
 }
 
+// What vps-stack deploy recorded: the version that runs and how the last
+// deploy ended. A failed deploy put the previous version back.
+const DEPLOY_LEVELS = { ok: "ok", failed: "bad", never: "warn" };
+
+function renderDeploys(deploys, generatedAt) {
+    const section = $("deploys-section");
+    // No project is deployed with vps-stack: the section stays hidden.
+    section.hidden = deploys.length === 0;
+    if (deploys.length === 0) {
+        return;
+    }
+    const now = Date.parse(generatedAt);
+    const rows = deploys.map((d) => {
+        const tr = document.createElement("tr");
+        tr.appendChild(cell(d.project));
+        tr.appendChild(cell(d.running || "–"));
+        tr.appendChild(cell(badge(d.state, DEPLOY_LEVELS[d.state] || "warn")));
+        tr.appendChild(cell(d.last_version || "–"));
+        const last = Date.parse(d.last_at);
+        tr.appendChild(cell(Number.isNaN(last) || Number.isNaN(now) ? "–" : `${formatDuration((now - last) / 1000)} ago`));
+        return tr;
+    });
+    $("deploys").replaceChildren(...rows);
+    const failed = deploys.filter((d) => d.state === "failed").length;
+    $("deploys-summary").textContent = `${deploys.length} ${deploys.length === 1 ? "project" : "projects"}` +
+        (failed > 0 ? ` · ${failed} with a failed last deploy` : "");
+}
+
 function renderFreshness() {
     if (stopped) {
         return;
@@ -532,6 +560,7 @@ async function refresh() {
         renderHost(data.host || {});
         renderContainers(Array.isArray(data.containers) ? data.containers : [], data.generated_at);
         renderBackups(Array.isArray(data.backups) ? data.backups : [], data.generated_at);
+        renderDeploys(Array.isArray(data.deploys) ? data.deploys : [], data.generated_at);
         lastData = data;
         lastError = null;
     } catch (error) {
