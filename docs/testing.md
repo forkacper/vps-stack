@@ -85,7 +85,12 @@ account, password and root logins), `SERVER_HOSTNAME` (also after a reboot), `ve
 provisioning without changes, the SSH port change (with a new session test,
 after a reboot, and the rollback when it is not confirmed), backup (init,
 run, deduplication, restore and import with every row, a single file,
-export, a broken hook, the schedule), `add-site` / `remove-site` with a
+export, a broken hook, the schedule), deploys with a real Docker and a
+registry on the server's localhost (pull, migrations, an unhealthy version
+that brings the previous one back, a missing version, `rollback`, removal of
+old images, `deploy status` and `verify`, and the restricted deploy key used
+from your computer: it deploys, gives no shell, and stops working once
+revoked), `add-site` / `remove-site` with a
 staging certificate, the status page (login, `status.json` without
 environment variables, the last backup of every group, the IPv4 and IPv6 client address, a fail2ban ban
 of your computer after failed logins that leaves the other site reachable,
@@ -99,7 +104,8 @@ step (connection, provisioning, SSH port change) stops the run, so that the
 server is never left half-configured without notice.
 
 Not covered: the provider's firewall in its panel, IPv6 from outside when your
-computer has no IPv6, and the restore of a whole server from scratch.
+computer has no IPv6, deploys in mode `build`, and the restore of a whole
+server from scratch.
 
 ## Manual test procedure
 

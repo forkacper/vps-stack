@@ -19,6 +19,9 @@ incompatible way.
   ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/master/docs/monitoring.md#5-optional-the-built-in-status-page)).
   On a server with the status page enabled, run once after updating:
   `sudo vps-stack monitor refresh` (it restarts the collector).
+- The end-to-end test deploys a project with a real Docker and a registry
+  on the server, and uses the restricted deploy key from outside
+  ([docs/testing.md](https://github.com/forkacper/vps-stack/blob/master/docs/testing.md#automated-end-to-end-test)).
 
 ### Changed
 
