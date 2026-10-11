@@ -84,8 +84,9 @@ hand. Docker packages from Docker's own repository are not covered by the
 automatic security updates: update them with `apt upgrade`.
 
 **What the status page shows.** When enabled (`vps-stack monitor`), the
-page behind its login shows container names, image versions and resource
-usage. The collector never reads environment variables, labels, mounts or
+page behind its login shows container names, image versions, resource
+usage, the names of the backup groups and the versions deployed with
+`vps-stack deploy`. The collector never reads environment variables, labels, mounts or
 logs, and nothing in a container gets access to Docker for it. A leaked
 status page password discloses the server's inventory, not its secrets.
 

@@ -343,6 +343,11 @@ calls() { cat "${FAKE_DIR}/calls" 2>/dev/null; }
         "2026-10-09T10:00:00Z DEPLOY_FAILED example-app def" "garbage" >"${file}"
     run deploy_last "${file}"
     [ "$output" = "2026-10-09T10:00:00Z DEPLOY_FAILED example-app def" ]
+    run deploy_last_ok "${file}"
+    [ "$output" = "2026-10-08T10:00:00Z DEPLOY_OK example-app abc" ]
+    run deploy_last_ok "${BATS_TEST_TMPDIR}/missing"
+    [ "$status" -eq 0 ]
+    [ "$output" = "" ]
 }
 
 @test "old images: the newest deployed versions and the previous one are kept" {

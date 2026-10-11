@@ -45,7 +45,8 @@ sudo vps-stack verify
 ```
 
 Among other things it shows disk usage, a pending reboot, the state of the
-proxy, ports exposed to the internet and the age of the last backup.
+proxy, ports exposed to the internet, the age of the last backup and a
+project whose last deploy failed.
 
 ## 5. Optional: the built-in status page
 
@@ -56,7 +57,8 @@ seconds, and shows the history of the last 24 hours or 7 days as charts: CPU
 (average and highest), memory, disk and load, and a 24-hour memory trend of
 every container. When backups are set up, it also shows the last successful
 backup of every backup group, with the same warning (13 hours) and error
-(48 hours) thresholds as `verify`. It is **disabled by default** and is meant for looking at
+(48 hours) thresholds as `verify`, and for every project deployed with
+`vps-stack deploy` the version that runs and how its last deploy ended. It is **disabled by default** and is meant for looking at
 the server, not for alerting: it sends no notifications.
 
 ```bash
@@ -82,7 +84,8 @@ How it works:
   networks and logs are never read**, so they cannot reach the page. For
   backups it reads the list of groups and the `BACKUP_OK` lines of the backup
   log, nothing else: no repository address, path or password reaches the
-  page.
+  page. For deploys it reads the history of every project (time, result and
+  version of each deploy), never a project's `.env` or compose file.
 - Every 5 minutes it also appends a history sample (CPU average and highest
   over those 5 minutes, memory, swap, disk, load, and the memory of every
   running container) to `/var/lib/vps-stack-monitor/history.jsonl`. The file
@@ -105,8 +108,8 @@ site), because Caddy gets two extra read-only mounts.
 What to know:
 
 - If somebody obtains the login and password, they see what the page shows:
-  container names, image versions, resource usage and the names of the
-  backup groups (your projects). Not secrets.
+  container names, image versions, resource usage, the names of the
+  backup groups (your projects) and the versions deployed. Not secrets.
 - IPv6 clients are seen with their real address, so they are banned like
   IPv4 ones, as long as the `proxy` network has IPv6 (`verify` reports it).
   On a network created by `vps-stack` 0.4.2 or older they show up as a

@@ -163,6 +163,10 @@ example-app          image  3f2a9c1d4b5e         9b1c0d2e3f4a         ok 2026-10
 
 The exit code is 1 when the last deploy of a listed project failed.
 
+`sudo vps-stack verify` has a row per project too, with a warning when the
+last deploy failed, and the optional status page
+([monitoring.md](monitoring.md)) shows the same in the browser.
+
 ## A key for the CI
 
 ```bash
