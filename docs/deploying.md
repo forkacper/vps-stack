@@ -78,6 +78,7 @@ sudo vps-stack deploy init example-app \
 | `--migrate "<service> <command>"` | migrations: the compose service to run them in, then the command |
 | `--backup` | back up the project before every deploy (needs `vps-stack backup init example-app`) |
 | `--health-timeout <seconds>` | how long to wait for healthy containers; default 120 |
+| `--keep-images <number>` | how many versions of the image stay on the server; default 5, `0` keeps all |
 | `--dry-run` | show the configuration without writing it |
 
 The result is `/etc/vps-stack/deploy/example-app.env`. To change something
@@ -113,6 +114,7 @@ What happens, in this order:
    which is what turns a pipeline red.
 8. The previous version is recorded for `rollback`, and the result is added
    to the history.
+9. The images of old versions are removed (see below).
 
 Everything a deploy prints also goes to
 `/var/log/vps-stack-deploy/example-app/deploy-<time>-<pid>.log`; the newest
@@ -121,6 +123,15 @@ Everything a deploy prints also goes to
 A deploy is not cut in half: when the connection that started it breaks (a
 cancelled pipeline, a network problem), it still runs to its end and the log
 is complete.
+
+**Old images do not pile up.** Every deploy leaves an image on the server.
+After a successful deploy the newest `DEPLOY_KEEP_IMAGES` versions stay (5
+by default, counting the running one), together with the version `rollback`
+returns to; the images of older versions are removed. Only images named with
+the tag variable are touched, and only tags that a deploy brought: the
+database image, or a tag you pulled by hand, stays. In mode `image` a removed
+version is still in the registry and can be deployed again. In mode `build`
+it is built again from its commit.
 
 **There is a short interruption** while the containers are replaced. This is
 not a zero-downtime (blue-green) deploy, and it will not become one.

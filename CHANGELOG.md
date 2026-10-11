@@ -9,6 +9,18 @@ incompatible way.
 
 ## [Unreleased]
 
+### Changed
+
+- `deploy run` removes the images of old versions after a successful deploy.
+  Until now every deployed version stayed on the server and the images
+  slowly filled the disk. The 5 versions deployed most recently and the one
+  `rollback` returns to are kept; `DEPLOY_KEEP_IMAGES` in
+  `/etc/vps-stack/deploy/<project>.env` (or `deploy init --keep-images`)
+  changes the number, and `0` keeps everything
+  ([docs/deploying.md](https://github.com/forkacper/vps-stack/blob/master/docs/deploying.md#deploying)).
+  A project set up with 0.7.0 gets the default of 5 without any change to
+  its configuration.
+
 ## [0.7.0] - 2026-10-09
 
 ### Added

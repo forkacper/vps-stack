@@ -117,6 +117,15 @@ validate_deploy_timeout() {
     fi
 }
 
+# validate_deploy_keep_images <number>: 0 to 100. 0 keeps every image.
+validate_deploy_keep_images() {
+    local re='^(0|[1-9][0-9]{0,2})$'
+    if [[ ! "${1:-}" =~ ${re} || "$1" -gt 100 ]]; then
+        printf 'Invalid value: the number of image versions to keep must be from 0 (keep all) to 100.\n' >&2
+        return 1
+    fi
+}
+
 # --- paths ------------------------------------------------------------------
 
 deploy_project_dir() { printf '%s/%s\n' "${PROJECTS_ROOT}" "$1"; }
@@ -268,6 +277,38 @@ deploy_known_hosts_line() {
     else
         printf '[%s]:%s %s %s\n' "${host}" "${port}" "${key_type}" "${key_body}"
     fi
+}
+
+# --- images of old versions -------------------------------------------------
+
+# deploy_stale_versions <history file> <keep> <current> [<previous>]: read
+# the tags of an image that exist on the server from stdin and print the
+# ones to remove. Kept: the <keep> versions deployed most recently, counting
+# the current one, and the previous one (what `rollback` returns to). A tag
+# that no deploy ever named is not in the history and is never printed:
+# only what a deploy brought is removed.
+deploy_stale_versions() {
+    local history="$1" keep="$2" current="$3" previous="${4:-}"
+    awk -v history="${history}" -v keep="${keep}" -v current="${current}" -v previous="${previous}" '
+        BEGIN {
+            while ((getline line < history) > 0) {
+                if (split(line, field, " ") != 4) continue
+                if (field[2] != "DEPLOY_OK" && field[2] != "DEPLOY_FAILED") continue
+                known[field[4]] = 1
+                if (field[2] == "DEPLOY_OK") deployed[++count] = field[4]
+            }
+            kept[current] = 1
+            kept_count = 1
+            for (i = count; i >= 1 && kept_count < keep; i--) {
+                if (!(deployed[i] in kept)) {
+                    kept[deployed[i]] = 1
+                    kept_count++
+                }
+            }
+            if (previous != "") kept[previous] = 1
+        }
+        ($0 in known) && !($0 in kept) { print }
+    '
 }
 
 # --- logs and history -------------------------------------------------------
