@@ -36,6 +36,9 @@ Commands:
       --backup                 back up the project before every deploy
       --health-timeout <s>     seconds to wait for healthy containers
                                (default 120)
+      --keep-images <n>        versions of the image kept on the server;
+                               older ones are removed after a deploy
+                               (default 5, 0 keeps all)
       --dry-run                show the configuration without writing it
   run <project> <version>    deploy a version: an image tag (mode image) or
                              a commit SHA or git tag (mode build)
@@ -46,8 +49,9 @@ Commands:
                              only start "deploy run <project> <version>"
 
 A deploy: lock, optional backup, pull or build, migrations, new containers,
-wait until they are healthy. When a step fails, the previous version is put
-back and the command exits with an error. Migrations are not undone.
+wait until they are healthy, remove the images of old versions. When a step
+fails, the previous version is put back and the command exits with an error.
+Migrations are not undone.
 
 Configuration: ${DEPLOY_CONF_DIR}/<project>.env
 Logs: ${DEPLOY_LOG_ROOT}/<project>/
@@ -82,6 +86,7 @@ load_project() {
     DEPLOY_MIGRATE_COMMAND=""
     DEPLOY_BACKUP="false"
     DEPLOY_HEALTH_TIMEOUT="120"
+    DEPLOY_KEEP_IMAGES="5"
     load_env_file "${file}"
     {
         validate_deploy_mode "${DEPLOY_MODE}" &&
@@ -89,7 +94,8 @@ load_project() {
             validate_deploy_compose_file "${DEPLOY_COMPOSE_FILE}" &&
             validate_deploy_migrate "${DEPLOY_MIGRATE_SERVICE}" "${DEPLOY_MIGRATE_COMMAND}" &&
             validate_deploy_bool "${DEPLOY_BACKUP}" &&
-            validate_deploy_timeout "${DEPLOY_HEALTH_TIMEOUT}"
+            validate_deploy_timeout "${DEPLOY_HEALTH_TIMEOUT}" &&
+            validate_deploy_keep_images "${DEPLOY_KEEP_IMAGES}"
     } || die "Fix the value in ${file}."
     PROJECT_DIR="$(deploy_project_dir "${project}")"
     [[ -d "${PROJECT_DIR}" ]] || die "The project directory ${PROJECT_DIR} does not exist."
@@ -99,17 +105,18 @@ load_project() {
 # --- init -------------------------------------------------------------------
 
 cmd_init() {
-    local project="" mode="image" tag_var="APP_TAG" compose_file="" migrate="" backup="false" timeout="120"
+    local project="" mode="image" tag_var="APP_TAG" compose_file="" migrate="" backup="false" timeout="120" keep_images="5"
     local migrate_service="" migrate_command="" file content dir
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --mode | --tag-var | --compose-file | --migrate | --health-timeout)
+            --mode | --tag-var | --compose-file | --migrate | --health-timeout | --keep-images)
                 [[ $# -ge 2 ]] || die "$1 needs a value."
                 case "$1" in
                     --mode) mode="$2" ;;
                     --tag-var) tag_var="$2" ;;
                     --compose-file) compose_file="$2" ;;
                     --migrate) migrate="$2" ;;
+                    --keep-images) keep_images="$2" ;;
                     *) timeout="$2" ;;
                 esac
                 shift
@@ -136,7 +143,8 @@ cmd_init() {
             validate_deploy_tag_var "${tag_var}" &&
             validate_deploy_compose_file "${compose_file}" &&
             validate_deploy_migrate "${migrate_service}" "${migrate_command}" &&
-            validate_deploy_timeout "${timeout}"
+            validate_deploy_timeout "${timeout}" &&
+            validate_deploy_keep_images "${keep_images}"
     } || exit 2
     require_root
     require_etc_access write
@@ -161,7 +169,7 @@ cmd_init() {
     content="$(render_template "${REPO_ROOT}/templates/deploy-project.env.tmpl" \
         "NAME=${project}" "MODE=${mode}" "TAG_VAR=${tag_var}" "COMPOSE_FILE=${compose_file}" \
         "MIGRATE_SERVICE=${migrate_service}" "MIGRATE_COMMAND=${migrate_command}" \
-        "BACKUP=${backup}" "HEALTH_TIMEOUT=${timeout}")"
+        "BACKUP=${backup}" "HEALTH_TIMEOUT=${timeout}" "KEEP_IMAGES=${keep_images}")"
     run install -d -m 700 "${DEPLOY_CONF_DIR}"
     write_file "${file}" 600 <<<"${content}"
     is_dry_run && return 0
@@ -251,6 +259,35 @@ deploy_steps() {
     compose_up || return 1
 }
 
+# remove_old_images <project> <version>: after a successful deploy, remove
+# the images of versions that are no longer kept. Only the images whose tag
+# in the compose file is the deployed version are looked at (the ones named
+# with the tag variable), and only tags that an earlier deploy brought.
+# Nothing here fails a deploy: an image that cannot be removed stays.
+remove_old_images() {
+    local project="$1" version="$2" previous="" ref repository tag refs tags
+    [[ "${DEPLOY_KEEP_IMAGES}" != "0" ]] || return 0
+    if [[ -r "$(deploy_previous_file "${project}")" ]]; then
+        previous="$(head -n 1 "$(deploy_previous_file "${project}")")"
+    fi
+    refs="$(docker compose config --images 2>/dev/null | LC_ALL=C sort -u)" || return 0
+    while IFS= read -r ref; do
+        [[ "${ref}" == *":${version}" ]] || continue
+        repository="${ref%":${version}"}"
+        tags="$(docker image ls --format '{{.Tag}}' "${repository}" 2>/dev/null |
+            deploy_stale_versions "$(deploy_history_file "${project}")" "${DEPLOY_KEEP_IMAGES}" "${version}" "${previous}")" || continue
+        while IFS= read -r tag; do
+            [[ -n "${tag}" ]] || continue
+            if docker image rm "${repository}:${tag}" >/dev/null 2>&1; then
+                printf 'Removed the image of an old version: %s:%s\n' "${repository}" "${tag}"
+            else
+                printf 'Kept %s:%s: Docker would not remove it (a container may still use it).\n' "${repository}" "${tag}"
+            fi
+        done <<<"${tags}"
+    done <<<"${refs}"
+    return 0
+}
+
 # deploy_revert: put back what deploy_steps changed, in reverse order.
 deploy_revert() {
     step "The deploy failed. Going back to ${STEPS_OLD_VERSION:-the state before it}"
@@ -310,6 +347,7 @@ deploy_execute() {
         validate_deploy_version "${STEPS_OLD_VERSION}" 2>/dev/null; then
         printf '%s\n' "${STEPS_OLD_VERSION}" >"$(deploy_previous_file "${project}")"
     fi
+    remove_old_images "${project}" "${version}"
     printf '\nDeployed %s %s\n' "${project}" "${version}"
 }
 

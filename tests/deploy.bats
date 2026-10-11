@@ -19,13 +19,29 @@ setup() {
 
     # A docker that records how it was called and fails on request: the
     # file ${FAKE_DIR}/fail-<compose command> makes that command fail once
-    # the tag in .env is the one named in the file.
+    # the tag in .env is the one named in the file. Images: the compose
+    # file names registry.example/app with the tag from .env and a database;
+    # ${FAKE_DIR}/tags lists the tags of the application image on the
+    # server, and what is asked about images goes to ${FAKE_DIR}/image-calls.
     FAKE_DIR="${BATS_TEST_TMPDIR}/fake"
     export FAKE_DIR
     mkdir -p "${FAKE_DIR}/bin" "${ETC_DIR}"
     cat >"${FAKE_DIR}/bin/docker" <<'FAKE'
 #!/usr/bin/env bash
 tag="$(sed -n 's/^APP_TAG=//p' .env 2>/dev/null)"
+if [[ "$1 $2" == "compose config" ]]; then
+    printf 'registry.example/app:%s\nmariadb:11.4\n' "${tag}"
+    exit 0
+fi
+if [[ "$1" == "image" ]]; then
+    printf '%s\n' "$*" >>"${FAKE_DIR}/image-calls"
+    if [[ "$2" == "ls" ]]; then
+        cat "${FAKE_DIR}/tags" 2>/dev/null
+    elif [[ -f "${FAKE_DIR}/in-use" && "$3" == "$(cat "${FAKE_DIR}/in-use")" ]]; then
+        exit 1
+    fi
+    exit 0
+fi
 printf '%s tag=%s file=%s\n' "$*" "${tag}" "${COMPOSE_FILE:-}" >>"${FAKE_DIR}/calls"
 if [[ -f "${FAKE_DIR}/fail-$2" && "$(cat "${FAKE_DIR}/fail-$2")" == "${tag}" ]]; then
     echo "fake docker: $2 failed" >&2
@@ -127,6 +143,15 @@ calls() { cat "${FAKE_DIR}/calls" 2>/dev/null; }
     done
     for value in "" 0 3601 99999 "12s" "-5" "1 2"; do
         run validate_deploy_timeout "${value}"
+        [ "$status" -ne 0 ]
+    done
+
+    for value in 0 1 5 100; do
+        run validate_deploy_keep_images "${value}"
+        [ "$status" -eq 0 ]
+    done
+    for value in "" 101 "05" "-1" "all" "1 2"; do
+        run validate_deploy_keep_images "${value}"
         [ "$status" -ne 0 ]
     done
 }
@@ -320,6 +345,34 @@ calls() { cat "${FAKE_DIR}/calls" 2>/dev/null; }
     [ "$output" = "2026-10-09T10:00:00Z DEPLOY_FAILED example-app def" ]
 }
 
+@test "old images: the newest deployed versions and the previous one are kept" {
+    local file="${BATS_TEST_TMPDIR}/history.log"
+    printf '%s\n' "2026-10-01T10:00:00Z DEPLOY_OK example-app v1" \
+        "2026-10-02T10:00:00Z DEPLOY_OK example-app v2" \
+        "2026-10-03T10:00:00Z DEPLOY_FAILED example-app v3" \
+        "2026-10-04T10:00:00Z DEPLOY_OK example-app v4" \
+        "2026-10-05T10:00:00Z DEPLOY_OK example-app v2" \
+        "2026-10-06T10:00:00Z DEPLOY_OK example-app v5" >"${file}"
+    local tags=$'v6\nv5\nv4\nv3\nv2\nv1\nlatest\n<none>'
+
+    # v6 is running; v5 and v2 were deployed last before it.
+    run deploy_stale_versions "${file}" 3 v6 v5 <<<"${tags}"
+    [ "$status" -eq 0 ]
+    [ "$output" = $'v4\nv3\nv1' ]
+
+    # The previous version is kept even when it is older than the others.
+    run deploy_stale_versions "${file}" 1 v6 v1 <<<"${tags}"
+    [ "$output" = $'v5\nv4\nv3\nv2' ]
+
+    # A tag that no deploy named is never removed; a failed version is.
+    run deploy_stale_versions "${file}" 100 v6 v5 <<<"${tags}"
+    [ "$output" = "v3" ]
+
+    run deploy_stale_versions "${BATS_TEST_TMPDIR}/missing" 1 v6 <<<"${tags}"
+    [ "$status" -eq 0 ]
+    [ "$output" = "" ]
+}
+
 # --- deploy init ------------------------------------------------------------
 
 @test "init: writes the configuration, refuses to overwrite it" {
@@ -336,6 +389,7 @@ calls() { cat "${FAKE_DIR}/calls" 2>/dev/null; }
     grep -qx 'DEPLOY_MIGRATE_COMMAND=php artisan migrate --force' "${file}"
     grep -qx 'DEPLOY_BACKUP=false' "${file}"
     grep -qx 'DEPLOY_HEALTH_TIMEOUT=60' "${file}"
+    grep -qx 'DEPLOY_KEEP_IMAGES=5' "${file}"
     file_has_mode "${file}" 600
 
     run "${DEPLOY}" init example-app --mode build
@@ -439,6 +493,40 @@ compose up -d --remove-orphans --wait --wait-timeout 120 tag=v2 file=${PROJECTS_
     [ "$(calls | tail -n 2)" = "compose up -d --remove-orphans --wait --wait-timeout 120 tag=v2 file=
 compose up -d --remove-orphans --wait --wait-timeout 120 tag=v1 file=" ]
     [ ! -e "${DEPLOY_STATE_ROOT}/example-app/previous" ]
+}
+
+@test "run: images of old versions are removed, only of the image that carries the version" {
+    runs_deploy
+    project example-app --keep-images 2
+    local version
+    for version in v2 v3 v4; do
+        "${DEPLOY}" run example-app "${version}" >/dev/null
+    done
+    rm -f "${FAKE_DIR}/image-calls"
+    printf '%s\n' v5 v4 v3 v2 v1 latest >"${FAKE_DIR}/tags"
+    echo "registry.example/app:v2" >"${FAKE_DIR}/in-use"
+    run "${DEPLOY}" run example-app v5
+    [ "$status" -eq 0 ]
+    # v5 runs, v4 is the previous one. v1 was never deployed by a deploy.
+    [ "$(cat "${FAKE_DIR}/image-calls")" = "image ls --format {{.Tag}} registry.example/app
+image rm registry.example/app:v3
+image rm registry.example/app:v2" ]
+    [[ "$output" == *"Removed the image of an old version: registry.example/app:v3"* ]]
+    [[ "$output" == *"Kept registry.example/app:v2"* ]]
+}
+
+@test "run: DEPLOY_KEEP_IMAGES=0 removes nothing; a failed deploy removes nothing" {
+    runs_deploy
+    project example-app --keep-images 0
+    "${DEPLOY}" run example-app v2 >/dev/null
+    "${DEPLOY}" run example-app v3 >/dev/null
+    [ ! -e "${FAKE_DIR}/image-calls" ]
+
+    project blog --keep-images 1
+    echo v2 >"${FAKE_DIR}/fail-up"
+    run "${DEPLOY}" run blog v2
+    [ "$status" -eq 1 ]
+    [ ! -e "${FAKE_DIR}/image-calls" ]
 }
 
 @test "run: the first deploy of a project without a tag in .env" {
