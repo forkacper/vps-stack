@@ -32,7 +32,7 @@ Usage: tests/e2e/run.sh <server-address> --key <private key> [options]
 
 End-to-end test of vps-stack on a fresh, disposable server. Run it from your
 computer. It provisions the server, changes its SSH port and firewall, and
-tests backup, sites and the status page. Never use it on a server you care
+tests backup, deploys, sites and the status page. Never use it on a server you care
 about.
 
 Required:
@@ -560,6 +560,143 @@ SCRIPT
     assert "backup setup installs the cron job" "" has "${out}" "E2E_CRON"
 }
 
+# --- deploy -----------------------------------------------------------------
+
+# A registry on the server's localhost holds four versions of a tiny image
+# and one that never becomes healthy. Everything a deploy does with a real
+# Docker runs here: pull, migrations, healthy containers, going back, old
+# images. Then the restricted key deploys from this computer.
+E2E_REGISTRY_IMAGE="registry:2"
+E2E_DEPLOY_BASE_IMAGE="busybox:1.36"
+
+step_deploy() {
+    local out key_file deploy_user deploy_groups
+    out="$(root_script <<SCRIPT 2>&1
+app=localhost:5000/e2e-deploy
+docker run -d --name e2e-registry -p 127.0.0.1:5000:5000 ${E2E_REGISTRY_IMAGE} >/dev/null || exit 1
+mkdir -p /tmp/e2e-deploy-build && cd /tmp/e2e-deploy-build || exit 1
+for v in v1 v2 v3 v4 broken; do
+    health='wget -q --spider http://127.0.0.1:8080/'
+    [ "\$v" = broken ] && health=false
+    printf 'FROM ${E2E_DEPLOY_BASE_IMAGE}\nRUN mkdir /www && echo %s >/www/index.html\nHEALTHCHECK --interval=2s --timeout=2s --retries=3 CMD %s\nCMD ["httpd","-f","-p","8080","-h","/www"]\n' "\$v" "\$health" >Dockerfile
+    docker build -q -t "\$app:\$v" . >/dev/null && docker push -q "\$app:\$v" >/dev/null && docker image rm "\$app:\$v" >/dev/null || exit 1
+done
+cd / && rm -rf /tmp/e2e-deploy-build
+install -d /srv/e2e-deploy
+cat >/srv/e2e-deploy/compose.yaml <<EOF
+services:
+  web:
+    image: \$app:\\\${APP_TAG:?set APP_TAG in .env}
+    restart: unless-stopped
+    mem_limit: 32m
+EOF
+running() { docker exec e2e-deploy-web-1 cat /www/index.html 2>/dev/null; }
+tags() { docker image ls --format '{{.Tag}}' "\$app" | sort | tr '\n' ' '; }
+vps-stack deploy init e2e-deploy --migrate "web cat /www/index.html" --keep-images 2 --health-timeout 60 >/dev/null && echo "E2E_INIT"
+vps-stack deploy run e2e-deploy v1 >/tmp/e2e-deploy.log 2>&1; echo "E2E_FIRST_EXIT=\$?"
+grep -qx v1 /tmp/e2e-deploy.log && echo "E2E_MIGRATED"
+echo "E2E_RUNNING_FIRST=\$(running)"
+vps-stack deploy run e2e-deploy v2 >/dev/null 2>&1
+vps-stack deploy run e2e-deploy v3 >/dev/null 2>&1
+echo "E2E_RUNNING_THIRD=\$(running)"
+echo "E2E_TAGS_THIRD=\$(tags)"
+vps-stack deploy run e2e-deploy broken >/tmp/e2e-deploy.log 2>&1; echo "E2E_BROKEN_EXIT=\$?"
+echo "E2E_RUNNING_AFTER_BROKEN=\$(running)"
+grep -qx 'APP_TAG=v3' /srv/e2e-deploy/.env && echo "E2E_ENV_RESTORED"
+vps-stack deploy run e2e-deploy missing >/dev/null 2>&1; echo "E2E_MISSING_EXIT=\$?"
+echo "E2E_RUNNING_AFTER_MISSING=\$(running)"
+vps-stack deploy status e2e-deploy >/dev/null 2>&1; echo "E2E_STATUS_EXIT=\$?"
+vps-stack verify 2>/dev/null | grep 'Deploy: e2e-deploy' | grep -q WARN && echo "E2E_VERIFY_WARNS"
+vps-stack deploy run e2e-deploy v4 >/dev/null 2>&1
+echo "E2E_TAGS_FOURTH=\$(tags)"
+vps-stack deploy rollback e2e-deploy >/dev/null 2>&1
+echo "E2E_RUNNING_ROLLBACK=\$(running)"
+vps-stack verify 2>/dev/null | grep 'Deploy: e2e-deploy' | grep -q OK && echo "E2E_VERIFY_OK"
+rm -f /tmp/e2e-deploy.log
+echo "E2E_DEPLOY_USER=\$(sed -n 's/^DEPLOY_USER=//p' /etc/vps-stack/stack.env)"
+echo "E2E_DEPLOY_GROUPS=\$(id -nG "\$(sed -n 's/^DEPLOY_USER=//p' /etc/vps-stack/stack.env)")"
+vps-stack deploy key e2e-deploy --host ${ADDRESS} --yes
+SCRIPT
+)"
+    # The private key of the deploy key must not reach the log.
+    sed '/BEGIN OPENSSH PRIVATE KEY/,/END OPENSSH PRIVATE KEY/d' <<<"${out}" >>"${LOG}"
+    if [[ "${out}" != *"E2E_INIT"* ]]; then
+        fail "deploy: registry, images and deploy init" "see the log"
+        return 0
+    fi
+    pass "deploy: registry, images and deploy init"
+    assert "First deploy pulls the image and starts the project" "$(grep -o 'E2E_RUNNING_FIRST=.*' <<<"${out}")" has "${out}" "E2E_RUNNING_FIRST=v1"
+    assert "Migrations run in a container of the new version" "" has "${out}" "E2E_MIGRATED"
+    assert "A new version replaces the running one" "$(grep -o 'E2E_RUNNING_THIRD=.*' <<<"${out}")" has "${out}" "E2E_RUNNING_THIRD=v3"
+    assert "Images of old versions are removed (keep 2)" "$(grep -o 'E2E_TAGS_THIRD=.*' <<<"${out}")" has "${out}" "E2E_TAGS_THIRD=v2 v3 "
+    if [[ "${out}" == *"E2E_BROKEN_EXIT=1"* && "${out}" == *"E2E_RUNNING_AFTER_BROKEN=v3"* && "${out}" == *"E2E_ENV_RESTORED"* ]]; then
+        pass "An unhealthy version fails the deploy and the previous one runs again"
+    else
+        fail "An unhealthy version fails the deploy and the previous one runs again" "$(grep -o 'E2E_BROKEN_EXIT=.*\|E2E_RUNNING_AFTER_BROKEN=.*' <<<"${out}" | tr '\n' ' ')"
+    fi
+    if [[ "${out}" == *"E2E_MISSING_EXIT=1"* && "${out}" == *"E2E_RUNNING_AFTER_MISSING=v3"* ]]; then
+        pass "A version that is not in the registry fails without touching the containers"
+    else
+        fail "A version that is not in the registry fails without touching the containers"
+    fi
+    if [[ "${out}" == *"E2E_STATUS_EXIT=1"* && "${out}" == *"E2E_VERIFY_WARNS"* ]]; then
+        pass "deploy status and verify report the failed deploy"
+    else
+        fail "deploy status and verify report the failed deploy"
+    fi
+    assert "The image of a failed version is removed by the next deploy" "$(grep -o 'E2E_TAGS_FOURTH=.*' <<<"${out}")" has "${out}" "E2E_TAGS_FOURTH=v3 v4 "
+    assert "rollback returns to the previous version" "$(grep -o 'E2E_RUNNING_ROLLBACK=.*' <<<"${out}")" has "${out}" "E2E_RUNNING_ROLLBACK=v3"
+    assert "verify shows the deployed version" "" has "${out}" "E2E_VERIFY_OK"
+
+    # The restricted key, from this computer: it deploys, and nothing else.
+    key_file="${WORK}/deploy-key"
+    sed -n '/BEGIN OPENSSH PRIVATE KEY/,/END OPENSSH PRIVATE KEY/p' <<<"${out}" >"${key_file}"
+    chmod 600 "${key_file}"
+    deploy_user="$(sed -n 's/^E2E_DEPLOY_USER=//p' <<<"${out}")"
+    if [[ ! -s "${key_file}" || -z "${deploy_user}" ]]; then
+        fail "deploy key is created" "no private key in the output"
+        return 0
+    fi
+    pass "deploy key is created"
+    deploy_groups="$(sed -n 's/^E2E_DEPLOY_GROUPS=//p' <<<"${out}")"
+    if [[ " ${deploy_groups} " != *" docker "* ]]; then
+        pass "The deployment account is not in the docker group" "${deploy_groups}"
+    else
+        fail "The deployment account is not in the docker group" "${deploy_groups}"
+    fi
+    deploy_ssh() {
+        ssh -n -o BatchMode=yes -o IdentitiesOnly=yes -i "${key_file}" -o UserKnownHostsFile="${KNOWN_HOSTS}" \
+            -o ConnectTimeout=15 -o LogLevel=ERROR -p "${ADMIN_PORT}" "${deploy_user}@${ADDRESS}" "$@"
+    }
+    out="$(deploy_ssh v4 2>&1)"
+    printf '%s\n' "${out}" >>"${LOG}"
+    assert "The deploy key deploys a version from outside" "" has "${out}" "Deployed e2e-deploy v4"
+    out="$(as_root "docker exec e2e-deploy-web-1 cat /www/index.html" 2>&1)"
+    assert "The version deployed with the key is running" "${out}" is "${out}" "v4"
+    if out="$(deploy_ssh "v3; id" 2>&1)" || [[ "${out}" == *"uid="* ]]; then
+        fail "The deploy key refuses anything but one version" "${out}"
+    else
+        pass "The deploy key refuses anything but one version"
+    fi
+    if out="$(deploy_ssh 2>&1)" || [[ "${out}" != *"can only deploy"* ]]; then
+        fail "The deploy key gives no shell" "${out}"
+    else
+        pass "The deploy key gives no shell"
+    fi
+
+    out="$(root_script <<'SCRIPT' 2>&1
+vps-stack deploy key e2e-deploy --revoke --yes >/dev/null && echo "E2E_REVOKED"
+docker rm -f e2e-registry >/dev/null
+SCRIPT
+)"
+    printf '%s\n' "${out}" >>"${LOG}"
+    if [[ "${out}" == *"E2E_REVOKED"* ]] && ! deploy_ssh v3 >>"${LOG}" 2>&1; then
+        pass "A revoked deploy key no longer deploys"
+    else
+        fail "A revoked deploy key no longer deploys"
+    fi
+}
+
 # https_code <host> [curl options...]: HTTP code from this computer.
 https_code() {
     local host="$1"
@@ -739,6 +876,7 @@ step_idempotency
 step_ssh_port
 step_doors
 step_backup
+step_deploy
 SITES=0
 if step_sites; then
     SITES=1
