@@ -9,6 +9,8 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-14
+
 ### Added
 
 - `verify` has a row for every project deployed with `vps-stack deploy`: the
@@ -16,12 +18,12 @@ incompatible way.
   deploy failed.
 - Status page: a "Deploys" table with the version that runs and the result
   of the last deploy of every project
-  ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/master/docs/monitoring.md#5-optional-the-built-in-status-page)).
+  ([docs/monitoring.md](https://github.com/forkacper/vps-stack/blob/v0.8.0/docs/monitoring.md#5-optional-the-built-in-status-page)).
   On a server with the status page enabled, run once after updating:
   `sudo vps-stack monitor refresh` (it restarts the collector).
 - The end-to-end test deploys a project with a real Docker and a registry
   on the server, and uses the restricted deploy key from outside
-  ([docs/testing.md](https://github.com/forkacper/vps-stack/blob/master/docs/testing.md#automated-end-to-end-test)).
+  ([docs/testing.md](https://github.com/forkacper/vps-stack/blob/v0.8.0/docs/testing.md#automated-end-to-end-test)).
 
 ### Changed
 
@@ -31,7 +33,7 @@ incompatible way.
   `rollback` returns to are kept; `DEPLOY_KEEP_IMAGES` in
   `/etc/vps-stack/deploy/<project>.env` (or `deploy init --keep-images`)
   changes the number, and `0` keeps everything
-  ([docs/deploying.md](https://github.com/forkacper/vps-stack/blob/master/docs/deploying.md#deploying)).
+  ([docs/deploying.md](https://github.com/forkacper/vps-stack/blob/v0.8.0/docs/deploying.md#deploying)).
   A project set up with 0.7.0 gets the default of 5 without any change to
   its configuration.
 
@@ -253,7 +255,8 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/forkacper/vps-stack/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/forkacper/vps-stack/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/forkacper/vps-stack/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/forkacper/vps-stack/compare/v0.4.2...v0.5.0
