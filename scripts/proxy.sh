@@ -5,6 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/../lib/common.sh"
+# shellcheck source=lib/network.sh
+source "${SCRIPT_DIR}/../lib/network.sh"
 
 COMPOSE_FILE="${REPO_ROOT}/proxy/docker-compose.yml"
 # Mounts of the status page; used only while it is enabled.
@@ -100,9 +102,17 @@ wait_healthy() {
     return 1
 }
 
+# attach_edge_networks: a recreated Caddy container has lost its project
+# networks (they are not in the compose file), so they are attached again
+# after every start. A failure is only reported: the proxy itself runs.
+attach_edge_networks() {
+    edge_attach_all || log_warn "Sites of the projects above return 502 until it is attached: vps-stack network sync"
+}
+
 cmd_up() {
     ensure_network
     run compose up -d
+    attach_edge_networks
     is_dry_run || wait_healthy
 }
 
@@ -119,6 +129,7 @@ check_config() {
 cmd_restart() {
     check_config fresh || die "The Caddy configuration is invalid. The proxy was not restarted."
     run compose up -d --force-recreate
+    attach_edge_networks
     is_dry_run || wait_healthy
 }
 

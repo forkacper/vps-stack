@@ -28,18 +28,33 @@ Internet
    |
    |  80/tcp, 443/tcp, 443/udp
    v
-[ caddy ]----------- network "proxy" (external, shared) -----------+
-                          |                                        |
-                 [ example-app-web ]                    [ other-project-web ]
-                          |                                        |
-             internal network example-app          internal network other-project
-                    |          |                             |          |
-                 [ app ]     [ db ]                       [ app ]     [ db ]
+network "proxy" (Caddy only)
+   |
+[ caddy ]------------------------------------------+
+   |                                               |
+network "edge-example-app"              network "edge-other-project"
+(internal)                              (internal)
+   |                                               |
+[ example-app-web ]                     [ other-project-web ]
+   |                                               |
+internal network example-app            internal network other-project
+   |          |                            |          |
+[ app ]     [ db ]                      [ app ]     [ db ]
 ```
 
 - **The `proxy` network** (named by `PROXY_NETWORK`) is created by
-  provisioning and shared. Caddy joins it, and **only the web container** of
-  every project.
+  provisioning. It carries the traffic from the internet to Caddy and
+  Caddy's own traffic out (ACME); it is Caddy's only network that is not
+  internal, so the published ports and the default route stay on it.
+- **A project network** `edge-<project>` per project, created by
+  `vps-stack network create <project>`: internal, labelled
+  `vps-stack.edge=<project>`, shared by Caddy and **only the web container**
+  of that project. Web containers of different projects have no network in
+  common and cannot reach each other, by name or by address. Caddy is
+  attached with `docker network connect`; the attachment belongs to the
+  container and is lost when the container is recreated, so `vps-stack proxy
+  up` and `restart` attach it to every labelled network again. Docker is the
+  only record of these networks: there is no state file to drift.
 - **The `proxy` network has IPv6 enabled** (Docker picks a private /64 for
   it). On an IPv4-only network Docker publishes Caddy's ports on the host's
   IPv6 addresses through its userland proxy, and every IPv6 client reaches
@@ -55,9 +70,13 @@ Internet
 - Caddy finds the web container by name (`container_name`) through Docker's
   DNS, which is why the upstream in `add-site` is `container-name:port`.
 
-Web containers of different projects can see each other on the `proxy`
-network. That is a deliberate trade-off for simplicity; so do not expose
-anything on the web container beyond what is public anyway.
+Projects set up before vps-stack 0.9.0 keep their web container on the
+`proxy` network, where web containers of different projects can see each
+other. `verify` lists them under "Docker: shared network"; moving one:
+[project-contract.md](project-contract.md#moving-a-project-to-its-own-network).
+
+Docker's default address pools give about 30 networks. Every project uses
+two (its own and its `edge-` network), which is enough for a dozen projects.
 
 ## Ports
 

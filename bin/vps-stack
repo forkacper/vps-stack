@@ -29,6 +29,7 @@ Sites:
   remove-site    remove a domain from the proxy
   list-sites     list the configured sites
   check-dns      check that a domain points at this server
+  network        project networks: create | remove | list | sync
 
 Services:
   proxy          up | down | restart | reload | validate | status | logs | network-ipv6
@@ -48,7 +49,7 @@ main() {
     local command="${1:-help}"
     [[ $# -gt 0 ]] && shift
     case "${command}" in
-        provision | ssh-port | add-site | remove-site | list-sites | check-dns | check-ports | verify | proxy | backup | deploy | monitor)
+        provision | ssh-port | add-site | remove-site | list-sites | check-dns | network | check-ports | verify | proxy | backup | deploy | monitor)
             exec "${SCRIPTS_DIR}/${command}.sh" "$@"
             ;;
         version | --version | -V)

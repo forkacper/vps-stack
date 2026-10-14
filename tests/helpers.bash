@@ -20,6 +20,8 @@ source "${REPO_ROOT}/lib/monitor.sh"
 source "${REPO_ROOT}/lib/backup.sh"
 # shellcheck source=lib/deploy.sh
 source "${REPO_ROOT}/lib/deploy.sh"
+# shellcheck source=lib/network.sh
+source "${REPO_ROOT}/lib/network.sh"
 
 # render <domain> <upstream> [aliases] [redirects] [max_body]
 render() {

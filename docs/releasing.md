@@ -29,7 +29,7 @@ relies on:
   `backup/<group>.env` and `monitor.env`;
 - paths: `/etc/vps-stack`, `/srv/data`, `/srv/backup-staging`, `/srv/backups`, the log files
   and the system files listed in [architecture.md](architecture.md);
-- the contracts with projects: the proxy network
+- the contracts with projects: the proxy network and the project networks
   ([project-contract.md](project-contract.md)) and the backup hooks
   ([backup-restore.md](backup-restore.md));
 - what provisioning does to a server: a new or removed firewall rule, a

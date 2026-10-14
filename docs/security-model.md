@@ -71,9 +71,12 @@ repositories live on the server itself and do not cover this case
 access to the panel has the console, the snapshots and the disks. That is why
 2FA on that account is the first step of the instructions.
 
-**Web containers can see each other.** They are all on the `proxy` network. A
-compromised web container of one project can send requests to the web
-containers of other projects, bypassing Caddy.
+**Caddy is attached to every project.** Each web container shares a network
+with Caddy only, so it cannot reach the web containers of other projects.
+Caddy itself has an interface in every project network: whoever takes over
+the Caddy container reaches every web container. Web containers of projects
+that still use the shared `proxy` network (set up before vps-stack 0.9.0)
+can reach each other there; `verify` lists them.
 
 **Volumetric attacks (DDoS).** A small VPS has no means of defending itself
 against them.
