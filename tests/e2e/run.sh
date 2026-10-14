@@ -732,8 +732,10 @@ step_sites() {
     pass "DNS of ${SITE_HOST} and ${STATUS_HOST} points at the server"
     check "Proxy network has IPv6" proxy_has_ipv6
 
-    root_script <<SCRIPT >>"${LOG}" 2>&1
+    out="$(root_script <<SCRIPT 2>&1
 set -e
+vps-stack network create e2e-web >/dev/null
+vps-stack network create e2e-other >/dev/null
 install -d /srv/e2e-web
 cat > /srv/e2e-web/docker-compose.yml <<EOF
 services:
@@ -743,14 +745,35 @@ services:
     restart: unless-stopped
     mem_limit: 64m
     networks:
-      - proxy
+      - edge
+      - internal
 networks:
-  proxy:
+  edge:
+    name: edge-e2e-web
     external: true
+  internal:
 EOF
 cd /srv/e2e-web && docker compose up -d --quiet-pull
+docker run -d --name e2e-other --network edge-e2e-other ${SITE_PORT_TEST_IMAGE} >/dev/null
+ip="\$(docker inspect -f '{{with index .NetworkSettings.Networks "edge-e2e-web"}}{{.IPAddress}}{{end}}' e2e-web)"
+docker exec e2e-other wget -q -O /dev/null -T 3 http://e2e-web/ 2>/dev/null || echo "E2E_NAME_BLOCKED"
+[ -n "\${ip}" ] && ! docker exec e2e-other wget -q -O /dev/null -T 3 "http://\${ip}/" 2>/dev/null && echo "E2E_ADDRESS_BLOCKED"
+docker exec e2e-web wget -q -O /dev/null -T 10 http://example.com/ && echo "E2E_WEB_OUTBOUND"
+docker rm -f e2e-other >/dev/null
+vps-stack network remove e2e-other --yes >/dev/null
+vps-stack proxy restart >/dev/null 2>&1
+docker inspect -f '{{range \$name, \$_ := .NetworkSettings.Networks}}{{\$name}} {{end}}' caddy | grep -q edge-e2e-web && echo "E2E_REATTACHED"
 vps-stack add-site ${SITE_HOST} e2e-web:80 --yes
 SCRIPT
+)"
+    printf '%s\n' "${out}" >>"${LOG}"
+    if [[ "${out}" == *"E2E_NAME_BLOCKED"* && "${out}" == *"E2E_ADDRESS_BLOCKED"* ]]; then
+        pass "Another project's web container cannot reach the site, by name or by address"
+    else
+        fail "Another project's web container cannot reach the site, by name or by address"
+    fi
+    assert "The web container reaches the internet through its project network" "" has "${out}" "E2E_WEB_OUTBOUND"
+    assert "proxy restart attaches the proxy to the project network again" "" has "${out}" "E2E_REATTACHED"
     issuer="$(cert_issuer "${SITE_HOST}")"
     assert "add-site: staging certificate issued" "${issuer:-no certificate}" has "${issuer}" "STAGING"
     assert "add-site: HTTPS answers 200" "" is "$(https_code "${SITE_HOST}")" "200"
