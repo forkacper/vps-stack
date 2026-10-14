@@ -384,9 +384,11 @@ step_packages() {
 # cloud-init setting that keeps both across reboots.
 set_hostname() {
     local short="${SERVER_HOSTNAME%%.*}" content
-    content="$(hosts_with_hostname "${SERVER_HOSTNAME}" "${short}" </etc/hosts)"
     # /etc/hosts first: sudo resolves the new name from the moment it is set.
-    write_file /etc/hosts 644 <<<"${content}"
+    if ! hosts_has_hostname "${SERVER_HOSTNAME}" "${short}" </etc/hosts; then
+        content="$(hosts_with_hostname "${SERVER_HOSTNAME}" "${short}" </etc/hosts)"
+        write_file /etc/hosts 644 <<<"${content}"
+    fi
     if [[ "$(hostname)" != "${short}" || "$(cat /etc/hostname 2>/dev/null)" != "${short}" ]]; then
         run hostnamectl set-hostname "${short}"
     fi

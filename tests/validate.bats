@@ -358,3 +358,20 @@ load helpers
     once="$(hosts_with_hostname srv1.example.com srv1 <<<$'127.0.0.1 localhost')"
     [ "$(hosts_with_hostname srv1.example.com srv1 <<<"${once}")" = "${once}" ]
 }
+
+@test "hosts: the line rewritten by cloud-init with tabs counts as present" {
+    local ovh=$'127.0.0.1\tlocalhost\n127.0.1.1\tsrv1.example.com\tsrv1\n127.0.1.1\tvps-123.vps.ovh.net\tvps-123\n'
+    run hosts_has_hostname srv1.example.com srv1 <<<"${ovh}"
+    [ "$status" -eq 0 ]
+    run hosts_has_hostname srv1 srv1 <<<$'127.0.1.1 srv1'
+    [ "$status" -eq 0 ]
+}
+
+@test "hosts: other names, another order or a commented line are not the host name" {
+    local input
+    for input in $'127.0.1.1 vps-123.vps.ovh.net vps-123' $'127.0.1.1 srv1 srv1.example.com' \
+        $'127.0.1.1 srv1.example.com' $'#127.0.1.1 srv1.example.com srv1' $'127.0.0.1 srv1.example.com srv1' ""; do
+        run hosts_has_hostname srv1.example.com srv1 <<<"${input}"
+        [ "$status" -ne 0 ]
+    done
+}

@@ -33,6 +33,14 @@ incompatible way.
 - `add-site` accepts an upstream container on any network it shares with the
   proxy, and warns when that is the shared `proxy` network.
 
+### Fixed
+
+- `provision` with `SERVER_HOSTNAME` no longer rewrites `/etc/hosts` on
+  every run on providers whose cloud-init vendor data sets
+  `manage_etc_hosts: localhost` (OVH): cloud-init reformats the file and
+  adds the provider's name below ours at every boot, which now counts as no
+  change.
+
 ## [0.8.0] - 2026-10-14
 
 ### Added

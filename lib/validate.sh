@@ -176,6 +176,24 @@ validate_hostname() {
     done
 }
 
+# hosts_has_hostname <full name> <short name>: true when /etc/hosts on stdin
+# already has a 127.0.1.1 line with exactly these names, in this order,
+# whatever the whitespace. Other 127.0.1.1 lines do not matter: cloud-init
+# with manage_etc_hosts: localhost from the provider's vendor data (OVH)
+# adds the provider's name below ours at every boot and rewrites the file
+# with tabs, and that must not count as a change.
+hosts_has_hostname() {
+    local names="$1"
+    [[ "$2" != "$1" ]] && names="${names} $2"
+    awk -v names="${names}" '
+        $1 == "127.0.1.1" {
+            line = $2
+            for (i = 3; i <= NF; i++) line = line " " $i
+            if (line == names) found = 1
+        }
+        END { exit !found }'
+}
+
 # hosts_with_hostname <full name> <short name>: read /etc/hosts on stdin and
 # print it with the line "127.0.1.1 <full name> <short name>" (only the short
 # name when both are the same), the way Debian and Ubuntu map their own host
