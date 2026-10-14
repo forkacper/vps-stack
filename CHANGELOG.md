@@ -9,6 +9,8 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-14
+
 ### Added
 
 - `vps-stack network create|remove|list|sync`: a network per project,
@@ -18,7 +20,7 @@ incompatible way.
   container reaches the internet through the project's own network.
   `vps-stack proxy up` and `restart` attach the proxy to every project
   network again, since a recreated container loses them
-  ([docs/project-contract.md](https://github.com/forkacper/vps-stack/blob/master/docs/project-contract.md#1-the-project-has-its-own-network-to-the-proxy)).
+  ([docs/project-contract.md](https://github.com/forkacper/vps-stack/blob/v0.9.0/docs/project-contract.md#1-the-project-has-its-own-network-to-the-proxy)).
 - `verify`: an error when the proxy is missing from a project network (its
   sites return 502), and a warning when web containers of several projects
   are still together on the shared `proxy` network.
@@ -29,7 +31,7 @@ incompatible way.
   web container on the project network instead of the shared `proxy`
   network. Projects on the `proxy` network keep working without any change;
   moving one takes a minute and a few seconds of downtime of its site
-  ([docs/project-contract.md](https://github.com/forkacper/vps-stack/blob/master/docs/project-contract.md#moving-a-project-to-its-own-network)).
+  ([docs/project-contract.md](https://github.com/forkacper/vps-stack/blob/v0.9.0/docs/project-contract.md#moving-a-project-to-its-own-network)).
 - `add-site` accepts an upstream container on any network it shares with the
   proxy, and warns when that is the shared `proxy` network.
 
@@ -287,7 +289,8 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/forkacper/vps-stack/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/forkacper/vps-stack/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/forkacper/vps-stack/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/forkacper/vps-stack/compare/v0.5.0...v0.6.0
