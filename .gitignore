@@ -8,6 +8,11 @@ restic*
 /local/
 # Reports of tests/e2e/run.sh: they hold the test server's addresses.
 /e2e-reports/
+# Local research notes and reports, kept out of the repository.
+/reports/
+/research_notes/
+# macOS folder metadata.
+.DS_Store
 
 # Only the documented examples are tracked. Listed last on purpose: a later
 # pattern wins over `*.env` and `restic*` above.
