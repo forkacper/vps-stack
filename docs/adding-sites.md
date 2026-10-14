@@ -9,7 +9,9 @@ you blocked for a longer time.
 
 So:
 
-1. Start the project (the web container has to be on the `proxy` network).
+1. Create the project's network (`sudo vps-stack network create <project>`)
+   and start the project with its web container on it
+   ([project-contract.md](project-contract.md)).
 2. Point the domain's `A` record at the server's IPv4 address. Set an `AAAA`
    record only if the server has working IPv6, and to the right address. **A
    wrong or stale `AAAA` record breaks certificate issuance even when `A` is
@@ -24,7 +26,7 @@ sudo vps-stack add-site app.example.com example-app-web:80
 ```
 
 - first argument: the domain,
-- second: `container-name:port` of the project's web server on the `proxy`
+- second: `container-name:port` of the project's web server, on the project's
   network.
 
 The command, in order:
@@ -33,7 +35,7 @@ The command, in order:
    and a plain upstream),
 2. checks that the domain is not already configured in another file,
 3. checks DNS,
-4. checks that the upstream container is on the `proxy` network,
+4. checks that the upstream container runs and shares a network with Caddy,
 5. writes `/etc/vps-stack/sites/<domain>.caddy`,
 6. validates the whole Caddy configuration; on an error it **rolls the change
    back** and stops, and the proxy keeps running as before,

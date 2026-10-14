@@ -3,6 +3,8 @@
 # skeleton, not a ready configuration: application-specific places are marked
 # TODO(user).
 #
+# Before the first start, create the project's network to the proxy:
+#   sudo vps-stack network create example-app
 # Once the project is running, add its domain:
 #   sudo vps-stack add-site app.example.com example-app-web:80
 
@@ -19,7 +21,7 @@ services:
     mem_limit: 128m
     # No `ports:`. Traffic from the internet gets here only through the proxy.
     networks:
-      - proxy
+      - edge
       - internal
     depends_on:
       - app
@@ -66,8 +68,11 @@ services:
       - internal
 
 networks:
-  # Shared network created by `vps-stack provision` (PROXY_NETWORK).
-  proxy:
+  # Network to the proxy, created by `vps-stack network create example-app`:
+  # only this project's web container and Caddy are on it. It is internal
+  # (no route to the internet); outgoing traffic goes through `internal`.
+  edge:
+    name: edge-example-app
     external: true
   # Private network of the project: the database, cache and workers are not
   # visible to other projects or to the proxy.

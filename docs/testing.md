@@ -13,6 +13,7 @@ without a server:
 | `bats tests/monitor.bats` | status page: logins, hashes, IP addresses, site file, ban list, `status.json` built only from the allowed fields, backup states |
 | `bats tests/backup.bats` | backup groups: names, paths, the order of groups, the last successful backup from the log and its age state, restore targets, export formats, staging pruning |
 | `bats tests/deploy.bats` | deploys: names, versions and configuration values, the tag line of `.env`, the restricted `authorized_keys` line and sudoers rule, what a deploy key may ask for, and `deploy init`, `run`, `rollback` and `status` against a fake `docker` (order of steps, going back on failure, lock, history) |
+| `bats tests/network.bats` | project networks: names, `network create`, `remove`, `list` and `sync` against a fake `docker` (internal and labelled, the proxy attached, nothing removed while a container is attached, refusal of a network not made by vps-stack) |
 | `bats tests/release.bats` | release notes taken from `CHANGELOG.md`, refusal of relative links, `VERSION` format |
 | version and changelog | `VERSION` is `MAJOR.MINOR.PATCH`, has its `CHANGELOG.md` section, and `## [Unreleased]` exists |
 | `fail2ban-regex` | the status page filter on `tests/fixtures/monitor-access.log`: failed logins match, requests without credentials and injection attempts do not |
@@ -90,7 +91,9 @@ registry on the server's localhost (pull, migrations, an unhealthy version
 that brings the previous one back, a missing version, `rollback`, removal of
 old images, `deploy status` and `verify`, and the restricted deploy key used
 from your computer: it deploys, gives no shell, and stops working once
-revoked), `add-site` / `remove-site` with a
+revoked), project networks (another project's web container reaches the
+site neither by name nor by address, the web container reaches the internet,
+`proxy restart` attaches the proxy again), `add-site` / `remove-site` with a
 staging certificate, the status page (login, `status.json` without
 environment variables, the last backup of every group, the IPv4 and IPv6 client address, a fail2ban ban
 of your computer after failed logins that leaves the other site reachable,
@@ -191,7 +194,9 @@ From a separate terminal, without closing the first session:
 Following [adding-sites.md](adding-sites.md):
 
 - [ ] `ACME_CA` set to staging, `sudo vps-stack proxy up`.
-- [ ] A test web container on the `proxy` network.
+- [ ] `sudo vps-stack network create <project>` and a test web container on
+      `edge-<project>`; a second one on another project's network cannot
+      reach it (`docker exec <other> wget -T 3 <container>` fails).
 - [ ] `vps-stack check-dns <domain>` before DNS is set: `MISMATCH`; after:
       `OK`.
 - [ ] `sudo vps-stack add-site <domain> <container>:80 --dry-run`: writes

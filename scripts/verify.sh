@@ -13,6 +13,8 @@ source "${SCRIPT_DIR}/../lib/backup.sh"
 source "${SCRIPT_DIR}/../lib/validate.sh"
 # shellcheck source=lib/deploy.sh
 source "${SCRIPT_DIR}/../lib/deploy.sh"
+# shellcheck source=lib/network.sh
+source "${SCRIPT_DIR}/../lib/network.sh"
 
 usage() {
     cat <<USAGE
@@ -97,6 +99,24 @@ check_proxy_network() {
     fi
 }
 
+# check_project_networks: Caddy is attached to every project network, and
+# web containers of different projects are not left together on the shared
+# proxy network, where they can reach each other.
+check_project_networks() {
+    local count missing shared
+    count="$(edge_networks | grep -c . || true)"
+    missing="$(edge_missing_from_caddy | tr '\n' ' ')"
+    if [[ -n "${missing}" ]]; then
+        report_add "ERROR" "Proxy: project networks" "not attached to ${missing% } (sites return 502); fix: sudo vps-stack network sync"
+    elif [[ "${count}" -gt 0 ]]; then
+        report_add "OK" "Proxy: project networks" "attached to all ${count}"
+    fi
+    shared="$(network_members "${PROXY_NETWORK}" | tr '\n' ' ')"
+    if [[ "$(wc -w <<<"${shared}")" -ge 2 ]]; then
+        report_add "WARN" "Docker: shared network" "${shared% } can reach each other on ${PROXY_NETWORK}; give each project its own network (docs/project-contract.md)"
+    fi
+}
+
 check_docker() {
     local info health
     if ! have_cmd docker; then
@@ -119,6 +139,7 @@ check_docker() {
     fi
 
     check_proxy_network
+    check_project_networks
 
     health="$(docker inspect -f '{{.State.Status}}{{if .State.Health}} {{.State.Health.Status}}{{end}}' "${CADDY_CONTAINER}" 2>/dev/null || true)"
     case "${health}" in

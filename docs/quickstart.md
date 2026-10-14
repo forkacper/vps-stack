@@ -138,10 +138,12 @@ swap, firewall, Docker and the proxy have to come up on their own.
 
 1. Prepare the project according to [project-contract.md](project-contract.md).
    Skeleton: `examples/project-compose.yml.example`.
-2. Create the project directory and start the project:
+2. Create the project directory and its network to the proxy, then start the
+   project:
 
    ```bash
    sudo install -d -o deploy -g deploy /srv/example-app
+   sudo vps-stack network create example-app
    # clone the project's repository into /srv/example-app, fill in .env
    cd /srv/example-app && sudo docker compose up -d
    ```

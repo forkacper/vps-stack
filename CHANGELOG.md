@@ -9,6 +9,30 @@ incompatible way.
 
 ## [Unreleased]
 
+### Added
+
+- `vps-stack network create|remove|list|sync`: a network per project,
+  `edge-<project>`, shared by the project's web container and the proxy
+  only. Web containers of different projects can no longer reach each other
+  bypassing Caddy, by name or by address. The network is internal; the web
+  container reaches the internet through the project's own network.
+  `vps-stack proxy up` and `restart` attach the proxy to every project
+  network again, since a recreated container loses them
+  ([docs/project-contract.md](https://github.com/forkacper/vps-stack/blob/master/docs/project-contract.md#1-the-project-has-its-own-network-to-the-proxy)).
+- `verify`: an error when the proxy is missing from a project network (its
+  sites return 502), and a warning when web containers of several projects
+  are still together on the shared `proxy` network.
+
+### Changed
+
+- The project contract and `examples/project-compose.yml.example` put the
+  web container on the project network instead of the shared `proxy`
+  network. Projects on the `proxy` network keep working without any change;
+  moving one takes a minute and a few seconds of downtime of its site
+  ([docs/project-contract.md](https://github.com/forkacper/vps-stack/blob/master/docs/project-contract.md#moving-a-project-to-its-own-network)).
+- `add-site` accepts an upstream container on any network it shares with the
+  proxy, and warns when that is the shared `proxy` network.
+
 ## [0.8.0] - 2026-10-14
 
 ### Added

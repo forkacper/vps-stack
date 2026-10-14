@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common.sh"
 # shellcheck source=lib/validate.sh
 source "${SCRIPT_DIR}/../lib/validate.sh"
+# shellcheck source=lib/network.sh
+source "${SCRIPT_DIR}/../lib/network.sh"
 
 SITE_TEMPLATE="${REPO_ROOT}/templates/site-standard.caddy.tmpl"
 
@@ -17,7 +19,8 @@ Usage: vps-stack add-site <domain> <upstream> [options]
 Example: vps-stack add-site app.example.com example-app-web:80
 
   <domain>     domain name, e.g. app.example.com
-  <upstream>   container-name:port on the proxy network, e.g. example-app-web:80
+  <upstream>   container-name:port of the project's web container, on a
+               network shared with the proxy, e.g. example-app-web:80
 
 Options:
   --alias <d1,d2>           additional domains served by the same upstream
@@ -37,20 +40,31 @@ need_value() {
     [[ $# -ge 2 ]] || die "Option $1 needs a value."
 }
 
+# check_upstream_container <container>: the container runs and shares a
+# network with Caddy: its project network, or the shared proxy network of
+# projects not moved yet.
 check_upstream_container() {
-    local container="$1" members
+    local container="$1" shared own
     if ! have_cmd docker || ! docker info >/dev/null 2>&1; then
         log_warn "Docker is not available, not checking the upstream container."
         return 0
     fi
-    members="$(docker network inspect "${PROXY_NETWORK}" \
-        --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' 2>/dev/null || true)"
-    if grep -qxF -- "${container}" <<<"${members}"; then
-        log_ok "Container ${container} is on the ${PROXY_NETWORK} network."
-        return 0
+    if [[ "$(docker inspect -f '{{.State.Running}}' "${container}" 2>/dev/null)" != "true" ]]; then
+        log_warn "Container ${container} is not running (or does not exist)."
+    else
+        shared="$(comm -12 <(container_networks "${container}") <(container_networks "${CADDY_CONTAINER}"))"
+        own="$(grep -vxF -- "${PROXY_NETWORK}" <<<"${shared}" | sed -n 1p || true)"
+        if [[ -n "${own}" ]]; then
+            log_ok "Container ${container} is on the network ${own}."
+            return 0
+        elif [[ -n "${shared}" ]]; then
+            log_ok "Container ${container} is on the shared ${PROXY_NETWORK} network."
+            log_warn "Web containers on ${PROXY_NETWORK} can reach each other. Give the project its own network: vps-stack network create <project>"
+            return 0
+        fi
+        log_warn "Container ${container} has no network in common with the proxy. Create the project's network (vps-stack network create <project>) and put the container on it."
     fi
-    log_warn "Container ${container} is not attached to the ${PROXY_NETWORK} network (or is not running)."
-    log_warn "Until it is started the site will return a 502 error."
+    log_warn "Until then the site will return a 502 error."
     confirm "Add the site anyway?" || die "Aborted. Nothing was changed."
 }
 

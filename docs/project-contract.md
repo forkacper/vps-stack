@@ -8,28 +8,51 @@ the project's image outside the server, with the deploy and rollback steps:
 `examples/project-build-workflow.yml.example`; with an automatic deploy over
 SSH: `examples/project-deploy-workflow.yml.example`.
 
-## 1. The shared network is external
+## 1. The project has its own network to the proxy
 
-Provisioning creates the proxy network, with IPv6 enabled so that Caddy sees
-the real address of IPv6 clients. A project does not create it, it only
-joins it:
+Every project gets a network shared by its web container and the proxy only:
+
+```bash
+sudo vps-stack network create example-app
+```
+
+It creates the internal Docker network `edge-example-app` and attaches Caddy
+to it. Web containers of different projects have no network in common, so a
+compromised one cannot reach the others. The project does not create this
+network, it only joins it:
 
 ```yaml
 networks:
-  proxy:
+  edge:
+    name: edge-example-app
     external: true
   internal:
 ```
 
-The network name comes from `PROXY_NETWORK` in `/etc/vps-stack/stack.env`
-(default `proxy`).
+The network is **internal**: it has no route to the internet. The web
+container reaches the internet, when it needs to, through the project's own
+network (`internal` above, an ordinary Compose network despite its name),
+where the application and the database are too.
 
-## 2. Only the web container joins the proxy network
+`vps-stack proxy up` and `restart` attach Caddy to every project network
+again (a recreated container loses them); `vps-stack network list` shows the
+state, `verify` reports a network Caddy is missing from. The network is
+removed with `sudo vps-stack network remove example-app` once the project is
+stopped.
+
+Projects started before vps-stack 0.9.0 put the web container on the shared
+`proxy` network instead (`PROXY_NETWORK` in `/etc/vps-stack/stack.env`),
+where web containers of all projects can reach each other. It still works;
+moving a project takes a minute: [Moving a project to its own
+network](#moving-a-project-to-its-own-network).
+
+## 2. Only the web container joins the project network
 
 The container with the web server (e.g. nginx) is the project's only container
-on the `proxy` network and has a **unique name**
+on the `edge-<project>` network and has a **unique name**
 (`container_name: example-app-web`): that name is the upstream given to
-`add-site`.
+`add-site`. Caddy is attached to many networks, so give `add-site` the
+container name, never a service name like `web` that other projects use too.
 
 The database, Redis, workers and everything else are on the project's internal
 network only.
@@ -38,6 +61,17 @@ Put services that process content coming from outside (document renderers,
 headless browsers, converters) on a **separate** network, visible only to the
 application that uses them. Compromising such a service should not give access
 to the database.
+
+### Moving a project to its own network
+
+1. `sudo vps-stack network create example-app`
+2. In the compose file, replace the `proxy` network of the web container with
+   `edge` and define it as in section 1.
+3. `docker compose up -d`: Compose recreates the web container on the new
+   network; the site is unreachable for a few seconds. The site files stay as
+   they are, the upstream name does not change.
+4. `sudo vps-stack verify` no longer lists the container under "Docker:
+   shared network".
 
 ## 3. The project publishes no ports
 
@@ -57,7 +91,7 @@ To check: `sudo vps-stack check-ports`.
 
 A project does not run its own Caddy, Traefik or an nginx listening on 80 and
 443. HTTPS and certificates are handled by the shared proxy, and the project
-receives plain HTTP traffic on the `proxy` network.
+receives plain HTTP traffic on the project network.
 
 ## 5. Trusted proxies
 
@@ -225,8 +259,9 @@ Details: [deploying.md](deploying.md).
 
 ## Checklist
 
-- [ ] the `proxy` network as `external: true`
-- [ ] only the web container on the `proxy` network, with a unique
+- [ ] a project network (`vps-stack network create <project>`), joined as
+      `external: true`
+- [ ] only the web container on the project network, with a unique
       `container_name`
 - [ ] no `ports:` (or `127.0.0.1:` only)
 - [ ] no proxy of its own on 80/443

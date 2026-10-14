@@ -51,9 +51,10 @@ session works.
         +--------------v---------------+
         |  Caddy (container "caddy")   |   automatic HTTPS
         +--------------+---------------+
-                       |  Docker network "proxy" (shared)
+                       |
           +------------+-------------+
-          |                          |
+          |  network                 |  network
+          |  "edge-example-app"      |  "edge-other-project"
   +-------v---------+        +-------v-----------+
   | example-app-web |        | other-project-web |   web containers of the projects
   +-------+---------+        +-------+-----------+
@@ -121,6 +122,7 @@ out a newer release tag) does not touch it.
 | `vps-stack remove-site <domain>` | removes a site (the file is moved aside, not deleted) |
 | `vps-stack list-sites` | lists domains, upstreams, aliases and redirects |
 | `vps-stack check-dns <domain>...` | checks that a domain points at this server |
+| `vps-stack network create\|remove\|list\|sync` | one network per project, shared by its web container and the proxy only |
 | `vps-stack deploy init\|run\|rollback\|status\|key` | deploys a version of a project (pull or build, migrations, healthy containers, back to the previous version on failure); `key` creates an SSH key for CI that can do nothing else |
 | `vps-stack proxy up\|down\|restart\|reload\|validate\|status\|logs\|network-ipv6` | manages the proxy container; `network-ipv6` moves an IPv4-only proxy network to IPv6 |
 | `vps-stack backup init\|run\|list\|snapshots\|restore\|export\|setup` | backup per project: set up, run, inspect, restore into a new directory, export an archive, schedule |
@@ -135,7 +137,7 @@ The full description: [docs/security-model.md](docs/security-model.md).
 
 - **Protects against:** SSH password guessing (keys only, root disabled),
   accidentally exposed host services (firewall), projects reaching each
-  other's databases (separate networks), missing system security patches
+  other's databases and web containers (a network per project), missing system security patches
   (automatic updates).
 - **Does not protect against:** bugs in your applications (Caddy is a proxy,
   not an application firewall), a compromised VPS provider account (it
