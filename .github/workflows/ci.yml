@@ -124,8 +124,8 @@ jobs:
           echo "${output}"
           echo "::endgroup::"
           # Guard against a vacuous pass: the generated file must really
-          # have been loaded by Caddy.
-          if grep -q "No files matching import glob pattern" <<<"${output}"; then
+          # have been loaded by Caddy (the global options may stay empty).
+          if grep -q '"No files matching import glob pattern","pattern":"sites/\*.caddy"' <<<"${output}"; then
             echo "Caddy did not see the generated site file" >&2
             exit 1
           fi
@@ -147,6 +147,35 @@ jobs:
             validate
             echo "::endgroup::"
           done
+
+          # On-demand TLS: the global option, a wildcard, any host and a site
+          # limited to paths. Caddy refuses on-demand TLS without the option.
+          mkdir -m 755 "${sites}/.global"
+          bash -c 'source lib/common.sh; source lib/validate.sh
+            render_template templates/on-demand-tls.caddy.tmpl URL=http://example-app-web/tls-check' \
+            >"${sites}/.global/on-demand-tls.caddy"
+          bash -c 'source lib/common.sh; source lib/validate.sh
+            site_render templates/site-standard.caddy.tmpl "*.example.net" example-app-web:4321 "" "" 64KB 1' \
+            >"${sites}/_wildcard.example.net.caddy"
+          bash -c 'source lib/common.sh; source lib/validate.sh
+            site_render templates/site-standard.caddy.tmpl "*" example-app-web:4321 "" "" "" 1' >"${sites}/_any.caddy"
+          bash -c 'source lib/common.sh; source lib/validate.sh
+            site_render templates/site-standard.caddy.tmpl hooks.example.org example-app-web:80 "" "" "" 0 /webhook,/health' \
+            >"${sites}/hooks.example.org.caddy"
+          chmod 644 "${sites}"/.global/*.caddy "${sites}"/*.caddy
+          echo "::group::on-demand TLS"
+          output="$(validate)"
+          echo "${output}"
+          echo "::endgroup::"
+          if grep -q "No files matching import glob pattern" <<<"${output}"; then
+            echo "Caddy did not see the global options or the site files" >&2
+            exit 1
+          fi
+          rm "${sites}/.global/on-demand-tls.caddy"
+          if validate >/dev/null; then
+            echo "Caddy accepted on-demand TLS without its permission endpoint" >&2
+            exit 1
+          fi
 
       - name: Healthcheck command exists in the image
         run: |
