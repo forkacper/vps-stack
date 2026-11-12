@@ -326,6 +326,38 @@ check_deploy() {
     done < <(deploy_projects)
 }
 
+# check_on_demand_tls: only when the endpoint is set or a site uses it. The
+# endpoint is asked about a host nobody owns: a 2xx would let anyone make the
+# proxy request certificates for names they point at this server.
+check_on_demand_tls() {
+    local sites="" file url probe output
+    for file in "${SITES_DIR}"/*.caddy; do
+        [[ -f "${file}" ]] || continue
+        grep -qxE '[[:space:]]*on_demand' "${file}" && sites="${sites}$(basename "${file}") "
+    done
+    if [[ ! -f "${ON_DEMAND_TLS_FILE}" ]]; then
+        if [[ -n "${sites}" ]]; then
+            report_add "ERROR" "Proxy: on-demand TLS" "${sites% } use it but no endpoint is set; fix: sudo vps-stack on-demand-tls set <url>"
+        fi
+        return 0
+    fi
+    url="$(on_demand_tls_url "${ON_DEMAND_TLS_FILE}")"
+    if ! caddy_running; then
+        report_add "WARN" "Proxy: on-demand TLS" "${url}: not checked, the proxy is not running"
+        return 0
+    fi
+    probe="vps-stack-probe-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n').invalid"
+    # Asked from inside the proxy, the way Caddy asks: a container name only
+    # resolves there.
+    if output="$(docker exec "${CADDY_CONTAINER}" wget -q -O /dev/null -T 5 "${url}?domain=${probe}" 2>&1)"; then
+        report_add "ERROR" "Proxy: on-demand TLS" "${url} ALLOWS an unknown host (${probe}): anyone can make the proxy request certificates"
+    elif [[ "${output}" == *"server returned error"* ]]; then
+        report_add "OK" "Proxy: on-demand TLS" "${url} refuses unknown hosts"
+    else
+        report_add "WARN" "Proxy: on-demand TLS" "${url} does not answer: no new certificate can be obtained (${output//$'\n'/ })"
+    fi
+}
+
 # check_monitor: only when the optional status page is enabled.
 check_monitor() {
     local status_file="${MONITOR_RUN_DIR}/status.json" age
@@ -387,6 +419,7 @@ main() {
     check_permissions
     check_backup
     check_deploy
+    check_on_demand_tls
     check_monitor
 
     report_print

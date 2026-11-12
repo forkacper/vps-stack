@@ -375,3 +375,63 @@ load helpers
         [ "$status" -ne 0 ]
     done
 }
+
+@test "site address: wildcard, any host and plain domain" {
+    run normalize_site_address "*.Example.COM"
+    [ "$status" -eq 0 ]
+    [ "$output" = "*.example.com" ]
+    run normalize_site_address "*"
+    [ "$output" = "*" ]
+    run normalize_site_address "App.Example.com"
+    [ "$output" = "app.example.com" ]
+}
+
+@test "site address: invalid wildcards are refused" {
+    local value
+    for value in "*.com" "*.*.example.com" "a.*.example.com" "**" "*example.com" '*.example.com{'; do
+        run normalize_site_address "${value}"
+        [ "$status" -ne 0 ]
+    done
+}
+
+@test "site address: kind and file name" {
+    [ "$(site_address_kind '*')" = "any" ]
+    [ "$(site_address_kind '*.example.com')" = "wildcard" ]
+    [ "$(site_address_kind 'app.example.com')" = "domain" ]
+    [ "$(site_file_name '*')" = "_any.caddy" ]
+    [ "$(site_file_name '*.example.com')" = "_wildcard.example.com.caddy" ]
+    [ "$(site_file_name 'app.example.com')" = "app.example.com.caddy" ]
+}
+
+@test "permission url: accepted forms" {
+    local value
+    for value in "http://example-app-web/tls-check" "http://example-app-web:8080/api/v1/public/tls-check" \
+        "https://api.example.com/tls-check" "http://example_app.web"; do
+        run validate_permission_url "${value}"
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "permission url: refused forms" {
+    local value
+    for value in "" "example-app-web/tls-check" "ftp://example.com/x" "http://example.com/x?domain=a" \
+        "http://example.com/x y" 'http://example.com/{x}' "http://example.com:0/x" "http://example.com:70000/x" \
+        "http://-bad.example.com/x" 'http://example.com/$x'; do
+        run validate_permission_url "${value}"
+        [ "$status" -ne 0 ]
+    done
+}
+
+@test "paths: a list of paths with an optional trailing star" {
+    run normalize_path_list "/_revalidate,/health,/api/*"
+    [ "$status" -eq 0 ]
+    [ "$output" = $'/_revalidate\n/health\n/api/*' ]
+}
+
+@test "paths: invalid lists are refused" {
+    local value
+    for value in "" "health" "/a,,/b" "/a," "/a b" "/a*b" '/a{b}' "/a?x=1"; do
+        run normalize_path_list "${value}"
+        [ "$status" -ne 0 ]
+    done
+}

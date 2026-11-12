@@ -1,6 +1,9 @@
 {
     email {$ACME_EMAIL}
     acme_ca {$ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
+    # Options written by vps-stack on this server: on-demand TLS
+    # (vps-stack on-demand-tls). No file, no option.
+    import sites/.global/*.caddy
     servers {
         protocols h1 h2 h3
     }

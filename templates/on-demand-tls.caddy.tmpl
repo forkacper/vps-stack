@@ -1,0 +1,6 @@
+# Managed by vps-stack (on-demand-tls). Manual edits are overwritten.
+# Global option: Caddy asks this endpoint (?domain=<host>) before it obtains
+# a certificate for a site with `tls { on_demand }`; only a 2xx answer allows it.
+on_demand_tls {
+    permission http {{URL}}
+}

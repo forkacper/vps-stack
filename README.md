@@ -120,8 +120,9 @@ out a newer release tag) does not touch it.
 | `vps-stack check-ports` | looks for ports reachable from the internet besides SSH, 80, 443 |
 | `vps-stack add-site <domain> <container:port>` | adds a site to the proxy; has `--dry-run` |
 | `vps-stack remove-site <domain>` | removes a site (the file is moved aside, not deleted) |
-| `vps-stack list-sites` | lists domains, upstreams, aliases and redirects |
+| `vps-stack list-sites` | lists domains, upstreams, aliases, redirects, on-demand TLS and paths |
 | `vps-stack check-dns <domain>...` | checks that a domain points at this server |
+| `vps-stack on-demand-tls set\|unset\|show` | the endpoint Caddy asks before a certificate for a wildcard or any-host site (`add-site '*.example.com' ... --on-demand-tls`) |
 | `vps-stack network create\|remove\|list\|sync` | one network per project, shared by its web container and the proxy only |
 | `vps-stack deploy init\|run\|rollback\|status\|key` | deploys a version of a project (pull or build, migrations, healthy containers, back to the previous version on failure); `key` creates an SSH key for CI that can do nothing else |
 | `vps-stack proxy up\|down\|restart\|reload\|validate\|status\|logs\|network-ipv6` | manages the proxy container; `network-ipv6` moves an IPv4-only proxy network to IPv6 |

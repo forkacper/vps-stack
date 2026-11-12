@@ -221,3 +221,89 @@ assert_refused() {
     [ "$status" -eq 0 ]
     [ "$output" = 'value: $HOME `id` $(id)' ]
 }
+
+@test "render: a wildcard with on-demand TLS" {
+    run render "*.Example.com" "example-app-web:4321" "" "" "64KB" 1
+    [ "$status" -eq 0 ]
+    local expected
+    expected="$(printf '%s\n' \
+        '*.example.com {' \
+        '    tls {' \
+        '        on_demand' \
+        '    }' \
+        '    import common' \
+        '    request_body {' \
+        '        max_size 64KB' \
+        '    }' \
+        '    reverse_proxy example-app-web:4321' \
+        '}')"
+    [ "$output" = "$expected" ]
+}
+
+@test "render: any host with on-demand TLS" {
+    run render "*" "example-app-web:4321" "" "" "" 1
+    [ "$status" -eq 0 ]
+    local expected
+    expected="$(printf '%s\n' \
+        'https:// {' \
+        '    tls {' \
+        '        on_demand' \
+        '    }' \
+        '    import common' \
+        '    reverse_proxy example-app-web:4321' \
+        '}')"
+    [ "$output" = "$expected" ]
+}
+
+@test "render: only the given paths" {
+    run render "app.example.com" "example-app-web:80" "" "" "" 0 "/health,/api/*"
+    [ "$status" -eq 0 ]
+    local expected
+    expected="$(printf '%s\n' \
+        'app.example.com {' \
+        '    import common' \
+        '    @allowed path /health /api/*' \
+        '    handle @allowed {' \
+        '        reverse_proxy example-app-web:80' \
+        '    }' \
+        '    respond 404' \
+        '}')"
+    [ "$output" = "$expected" ]
+}
+
+@test "render: a wildcard or any host needs on-demand TLS" {
+    run render "*.example.com" "example-app-web:80"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--on-demand-tls"* ]]
+    run render "*" "example-app-web:80"
+    [ "$status" -ne 0 ]
+}
+
+@test "render: on-demand TLS is refused for a plain domain" {
+    run render "app.example.com" "example-app-web:80" "" "" "" 1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"the usual way"* ]]
+}
+
+@test "render: a wildcard takes no aliases or redirects" {
+    run render "*.example.com" "example-app-web:80" "www.example.org" "" "" 1
+    [ "$status" -ne 0 ]
+    run render "*" "example-app-web:80" "" "www.example.org" "" 1
+    [ "$status" -ne 0 ]
+}
+
+@test "render: an invalid path produces no output" {
+    run render "app.example.com" "example-app-web:80" "" "" "" 0 '/a}'
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"{"* ]]
+}
+
+@test "render: the on-demand TLS option" {
+    run render_template "${REPO_ROOT}/templates/on-demand-tls.caddy.tmpl" "URL=http://example-app-web/tls-check"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'on_demand_tls {\n    permission http http://example-app-web/tls-check\n}'* ]]
+    local file="${BATS_TEST_TMPDIR}/on-demand-tls.caddy"
+    printf '%s\n' "$output" >"${file}"
+    run on_demand_tls_url "${file}"
+    [ "$output" = "http://example-app-web/tls-check" ]
+}

@@ -29,6 +29,13 @@ site, so that failed certificate attempts do not exhaust the certificate
 authority's rate limits, and rolls the change back when Caddy rejects the
 configuration.
 
+**Certificates requested for names someone else points at the server.**
+Sites with on-demand TLS obtain a certificate for any host only after the
+endpoint set with `vps-stack on-demand-tls` allows it, and Caddy refuses
+on-demand TLS without one. The endpoint is part of your application, so its
+correctness is yours: `vps-stack verify` asks it about a host nobody owns and
+reports an error when it allows it.
+
 **Configuration injection through arguments.** Every value that ends up in a
 Caddy file is validated against a strict pattern, and the template is filled
 in by plain text substitution, without `eval` and without shell expansion.

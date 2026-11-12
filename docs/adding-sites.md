@@ -94,13 +94,71 @@ On a DNS mismatch the command asks whether to continue. `--yes` does **not**
 answer that question with yes: in no-questions mode you have to pass
 `--no-dns-check` explicitly.
 
-## Limitations in version 0.1
+### Only some paths: `--paths`
 
-- No wildcards (`*.example.com`).
+Serves only the listed paths (a trailing `*` matches a prefix) and answers
+404 for everything else, e.g. a host that exists only for a webhook and a
+health check:
+
+```bash
+sudo vps-stack add-site hooks.example.com example-app-web:80 --paths /webhook,/health
+```
+
+## Many hosts: a wildcard or any host, with on-demand TLS
+
+Some applications serve hosts nobody lists in advance: a subdomain for every
+customer (`<customer>.example.com`), or the customers' own domains pointed at
+the server. `add-site` takes them with `--on-demand-tls`:
+
+- `'*.example.com'`: every subdomain of one label (`a.example.com`, not
+  `a.b.example.com`). DNS: a wildcard record `*.example.com`.
+- `'*'`: any host no other site serves. Explicit sites and wildcards always
+  win over it. DNS: the customers' records, pointed at the server.
+
+Quote both, so that the shell does not expand them.
+
+With on-demand TLS Caddy obtains a certificate for a host on its **first
+visit** (a few seconds once) and renews it like any other. Before that it
+asks an endpoint of yours whether the host is allowed; only a 2xx answer is.
+Without that check anyone could point names at the server and make it
+request certificates until the certificate authority's limits are used up,
+so Caddy refuses on-demand TLS without the endpoint, and so does `add-site`.
+
+```bash
+# 1. The endpoint: Caddy adds ?domain=<host>; answer 2xx only for hosts your
+#    application serves. A container on a project network, or a public URL.
+sudo vps-stack on-demand-tls set http://example-app-web/tls-check
+# 2. The sites
+sudo vps-stack add-site '*.example.com' example-app-web:80 --on-demand-tls
+sudo vps-stack add-site '*' example-app-web:80 --on-demand-tls
+# 3. The endpoint refuses a host nobody owns
+sudo vps-stack verify
+```
+
+`vps-stack on-demand-tls show` prints the endpoint, `unset` removes it (only
+once no site uses it). There is one endpoint per server, so the application
+behind it decides for every on-demand site of the server.
+
+- The DNS check of a wildcard looks up a random name under it; `'*'` has no
+  name to check.
+- A wildcard or any host takes no `--alias` or `--redirect-from`: redirects
+  between the customers' hosts belong to the application.
+- Let's Encrypt allows 50 new certificates a week per registered domain
+  (`example.com` and all its subdomains together); renewals do not count.
+  Each customer's own domain has its own limit. Above that, a single
+  wildcard certificate needs the DNS-01 challenge and a Caddy build with your
+  DNS provider's module, which `vps-stack` does not ship.
+- `remove-site '*.example.com'` and `remove-site '*'` remove them like any
+  site; the certificates already issued stay in Caddy's storage until they
+  expire.
+
+## Limitations
+
 - ASCII domains only; give internationalised names in punycode (`xn--...`).
 - One upstream per site, one template. You can write a custom configuration by
-  hand as your own `*.caddy` file in `/etc/vps-stack/sites/`, but `add-site`
-  and `list-sites` only understand files generated from the template.
+  hand as your own `*.caddy` file in `/etc/vps-stack/sites/`; `add-site`
+  checks its hosts for duplicates and `list-sites` shows it as "not written
+  by add-site" when it has no plain `reverse_proxy`.
 
 ## Testing against the staging environment
 

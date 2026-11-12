@@ -51,7 +51,7 @@ normalize_domain() {
             return 1
             ;;
         *"*"*)
-            _validate_fail "wildcards (*.example.com) are not supported in version 0.1."
+            _validate_fail "a wildcard (*.example.com) or any host (*) needs --on-demand-tls."
             return 1
             ;;
         *":"*)
@@ -326,6 +326,95 @@ ip_is_public() {
     esac
 }
 
+# normalize_site_address <value>: a plain domain (normalize_domain), a
+# wildcard of one label "*.example.com" (lowercased; the rest must be a
+# domain with at least one dot, so "*.com" is refused) or "*" for any host.
+normalize_site_address() {
+    local raw="${1:-}" rest
+    case "${raw}" in
+        "*") printf '*\n' ;;
+        "*."*)
+            if [[ "${raw#\*.}" == *"*"* ]]; then
+                _validate_fail "a wildcard covers one label only, e.g. *.example.com."
+                return 1
+            fi
+            rest="$(normalize_domain "${raw#\*.}")" || return 1
+            printf '*.%s\n' "${rest}"
+            ;;
+        *) normalize_domain "${raw}" ;;
+    esac
+}
+
+# site_address_kind <normalized address>: domain, wildcard or any.
+site_address_kind() {
+    case "$1" in
+        "*") printf 'any\n' ;;
+        "*."*) printf 'wildcard\n' ;;
+        *) printf 'domain\n' ;;
+    esac
+}
+
+# site_file_name <normalized address>: the base name of the site file.
+# "*" and "*" in a file name would be globbed by the shell and by Caddy.
+site_file_name() {
+    case "$1" in
+        "*") printf '_any.caddy\n' ;;
+        "*."*) printf '_wildcard.%s.caddy\n' "${1#\*.}" ;;
+        *) printf '%s.caddy\n' "$1" ;;
+    esac
+}
+
+# validate_permission_url <value>: the endpoint Caddy asks before it obtains
+# an on-demand certificate: http(s)://<host>[:port]/<path>, the host a
+# container name or a domain, the path plain characters only. Caddy adds
+# ?domain=<host> itself, so no query is allowed.
+validate_permission_url() {
+    local LC_ALL=C
+    local url="${1:-}" port
+    local re='^https?://[a-z0-9]([a-z0-9_.-]{0,251}[a-z0-9])?(:([0-9]{1,5}))?(/[A-Za-z0-9._~/-]*)?$'
+    if has_unsafe_chars "${url}"; then
+        _validate_fail "the URL contains whitespace or special characters."
+        return 1
+    fi
+    if [[ ! "${url}" =~ ${re} ]]; then
+        _validate_fail "the URL must look like http://example-app-web/tls-check or https://api.example.com/tls-check, without a query."
+        return 1
+    fi
+    port="${BASH_REMATCH[3]}"
+    if [[ -n "${port}" ]] && { [[ "$((10#${port}))" -lt 1 ]] || [[ "$((10#${port}))" -gt 65535 ]]; }; then
+        _validate_fail "the port must be in the range 1-65535."
+        return 1
+    fi
+}
+
+# normalize_path_list <csv>: print one path per line. A path starts with "/",
+# holds plain characters only and may end with "*" (a prefix).
+normalize_path_list() {
+    local LC_ALL=C
+    local csv="${1:-}" item
+    local -a items
+    local re='^/[A-Za-z0-9._~/-]*\*?$'
+    if has_unsafe_chars "${csv}"; then
+        _validate_fail "the path list contains whitespace or special characters."
+        return 1
+    fi
+    case "${csv}" in
+        "" | ,* | *, | *,,*)
+            _validate_fail "the path list has an empty item: ${csv}"
+            return 1
+            ;;
+        *) ;;
+    esac
+    IFS=',' read -r -a items <<<"${csv}"
+    for item in "${items[@]}"; do
+        if [[ ! "${item}" =~ ${re} || "${#item}" -gt 200 ]]; then
+            _validate_fail "a path must start with / and contain only letters, digits and . _ ~ / -, optionally ending with *: ${item}"
+            return 1
+        fi
+        printf '%s\n' "${item}"
+    done
+}
+
 # normalize_domain_list <csv>: print one normalized domain per line.
 normalize_domain_list() {
     local csv="${1:-}" item normalized
@@ -351,25 +440,47 @@ normalize_domain_list() {
     done
 }
 
-# site_render <template> <domain> <upstream> [aliases_csv] [redirects_csv] [max_body]
+# site_render <template> <address> <upstream> [aliases_csv] [redirects_csv] [max_body] [on_demand] [paths_csv]
 # Validates every argument and prints the site config. Fails before producing
-# any output when a single value is invalid.
+# any output when a single value is invalid. The address is a domain, a
+# wildcard (*.example.com) or * (any host); the last two need on_demand=1
+# (a certificate per host on its first visit, docs/adding-sites.md) and take
+# no aliases or redirects. paths_csv limits the site to those paths (404 for
+# the rest).
 site_render() {
     local template="$1" raw_domain="${2:-}" upstream="${3:-}"
-    local aliases_csv="${4:-}" redirects_csv="${5:-}" max_body="${6:-}"
-    local domain aliases redirects host seen domains body_limit redirect_blocks redirect_hosts
+    local aliases_csv="${4:-}" redirects_csv="${5:-}" max_body="${6:-}" on_demand="${7:-0}" paths_csv="${8:-}"
+    local domain kind aliases redirects host seen domains body_limit redirect_blocks redirect_hosts tls proxy paths
 
-    domain="$(normalize_domain "${raw_domain}")" || return 1
+    domain="$(normalize_site_address "${raw_domain}")" || return 1
+    kind="$(site_address_kind "${domain}")"
     validate_upstream "${upstream}" || return 1
     aliases="$(normalize_domain_list "${aliases_csv}")" || return 1
     redirects="$(normalize_domain_list "${redirects_csv}")" || return 1
     if [[ -n "${max_body}" ]]; then
         validate_size "${max_body}" || return 1
     fi
+    paths=""
+    if [[ -n "${paths_csv}" ]]; then
+        paths="$(normalize_path_list "${paths_csv}")" || return 1
+    fi
+    if [[ "${kind}" != "domain" && "${on_demand}" != "1" ]]; then
+        _validate_fail "a wildcard (*.example.com) or any host (*) needs --on-demand-tls."
+        return 1
+    fi
+    if [[ "${kind}" == "domain" && "${on_demand}" == "1" ]]; then
+        _validate_fail "--on-demand-tls is for a wildcard (*.example.com) or any host (*); ${domain} gets its certificate the usual way."
+        return 1
+    fi
+    if [[ "${kind}" != "domain" && -n "${aliases}${redirects}" ]]; then
+        _validate_fail "a wildcard or any host takes no --alias or --redirect-from."
+        return 1
+    fi
 
     # A host may appear only once across domain, aliases and redirects.
     seen=" ${domain} "
     domains="${domain}"
+    [[ "${kind}" == "any" ]] && domains="https://"
     for host in ${aliases}; do
         if [[ "${seen}" == *" ${host} "* ]]; then
             _validate_fail "domain ${host} was given more than once."
@@ -388,9 +499,19 @@ site_render() {
         redirect_hosts="${redirect_hosts:+${redirect_hosts}, }${host}"
     done
 
+    tls=""
+    if [[ "${on_demand}" == "1" ]]; then
+        tls="    tls {"$'\n'"        on_demand"$'\n'"    }"$'\n'
+    fi
     body_limit=""
     if [[ -n "${max_body}" ]]; then
         body_limit="    request_body {"$'\n'"        max_size ${max_body}"$'\n'"    }"$'\n'
+    fi
+    if [[ -n "${paths}" ]]; then
+        proxy="    @allowed path $(tr '\n' ' ' <<<"${paths}")"
+        proxy="${proxy% }"$'\n'"    handle @allowed {"$'\n'"        reverse_proxy ${upstream}"$'\n'"    }"$'\n'"    respond 404"
+    else
+        proxy="    reverse_proxy ${upstream}"
     fi
     redirect_blocks=""
     if [[ -n "${redirect_hosts}" ]]; then
@@ -399,7 +520,8 @@ site_render() {
 
     render_template "${template}" \
         "DOMAINS=${domains}" \
+        "TLS=${tls}" \
         "BODY_LIMIT=${body_limit}" \
-        "UPSTREAM=${upstream}" \
+        "PROXY=${proxy}" \
         "REDIRECT_BLOCKS=${redirect_blocks}"
 }

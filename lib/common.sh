@@ -50,8 +50,14 @@ MONITOR_SITE_FILE="${SITES_DIR}/_monitor.caddy"
 MONITOR_BAN_SNIPPET="${SITES_DIR}/.monitor-banned"
 MONITOR_RUN_DIR="${VPS_STACK_MONITOR_RUN_DIR:-/run/vps-stack-monitor}"
 MONITOR_LOG_DIR="${VPS_STACK_MONITOR_LOG_DIR:-/var/log/vps-stack-monitor}"
+
 # History of the status page: survives reboots, unlike the runtime directory.
 MONITOR_STATE_DIR="${VPS_STACK_MONITOR_STATE_DIR:-/var/lib/vps-stack-monitor}"
+
+# Global options of the proxy written by vps-stack, imported by
+# proxy/Caddyfile from sites/.global/*.caddy. Managed by `vps-stack on-demand-tls`.
+GLOBAL_OPTIONS_DIR="${SITES_DIR}/.global"
+ON_DEMAND_TLS_FILE="${GLOBAL_OPTIONS_DIR}/on-demand-tls.caddy"
 
 DRY_RUN="${DRY_RUN:-0}"
 ASSUME_YES="${ASSUME_YES:-0}"
@@ -476,6 +482,12 @@ site_file_hosts() {
             *) ;;
         esac
     done <"$1"
+}
+
+# on_demand_tls_url <file>: the endpoint of the on-demand TLS file written by
+# `vps-stack on-demand-tls set`.
+on_demand_tls_url() {
+    awk '$1 == "permission" && $2 == "http" { print $3; exit }' "$1"
 }
 
 # site_refuse_duplicates <target file> <hosts...>: a host served by two site

@@ -13,7 +13,8 @@ usage() {
 Usage: vps-stack check-dns [--server-ip <address>]... <domain>...
 
 Compares the A and AAAA records of the domains with the public address of
-this server.
+this server. A wildcard ('*.example.com') is checked on a random name under
+it.
 
 Options:
   --server-ip <address> public address of the server (IPv4 or IPv6); may be
@@ -139,8 +140,18 @@ main() {
     log_info "Server address: IPv4 ${SERVER_V4:-none}, IPv6 ${SERVER_V6:-none}"
 
     for domain in "${DOMAINS[@]}"; do
-        if ! normalized="$(normalize_domain "${domain}")"; then
+        if [[ "${domain}" == "*" ]]; then
+            log_error "'*' (any host) has no name to check."
             exit 2
+        fi
+        if ! normalized="$(normalize_site_address "${domain}")"; then
+            exit 2
+        fi
+        if [[ "${normalized}" == "*."* ]]; then
+            # A random label, so that an explicit record of a common name
+            # (www, app) cannot answer for the wildcard.
+            normalized="vps-stack-check-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n').${normalized#\*.}"
+            log_info "Wildcard ${domain}: checking ${normalized}"
         fi
         check_domain "${normalized}" || failed=1
     done

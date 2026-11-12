@@ -9,6 +9,27 @@ incompatible way.
 
 ## [Unreleased]
 
+### Added
+
+- `add-site '*.example.com' <upstream> --on-demand-tls` and
+  `add-site '*' <upstream> --on-demand-tls`: a site for every subdomain, or
+  for any host no other site serves (e.g. the customers' own domains). Caddy
+  obtains a certificate per host on its first visit, after the endpoint set
+  with the new `vps-stack on-demand-tls set <url>` allowed it
+  ([docs/adding-sites.md](docs/adding-sites.md#many-hosts-a-wildcard-or-any-host-with-on-demand-tls)).
+- `add-site --paths /a,/b*`: serve only these paths, 404 for the rest.
+- `check-dns '*.example.com'` checks a random name under the wildcard.
+- `verify`: an error when on-demand sites have no endpoint, or when the
+  endpoint allows a host nobody owns.
+
+### Changed
+
+- `proxy/Caddyfile` imports `sites/.global/*.caddy` in its global options;
+  nothing changes on a server without such files. After updating, run
+  `sudo vps-stack proxy restart` (the Caddyfile is mounted as a single file).
+- `list-sites` has a NOTES column: on-demand TLS, the served paths, and files
+  not written by `add-site`.
+
 ## [0.9.0] - 2026-10-14
 
 ### Added

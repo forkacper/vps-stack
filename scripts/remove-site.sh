@@ -12,6 +12,8 @@ usage() {
     cat <<USAGE
 Usage: vps-stack remove-site <domain> [--dry-run] [--yes]
 
+<domain> as given to add-site: app.example.com, '*.example.com' or '*'.
+
 Moves the site file to ${SITES_DIR}/.removed/ (it is not deleted), validates
 the configuration and reloads the proxy.
 USAGE
@@ -42,17 +44,17 @@ main() {
         usage >&2
         exit 2
     }
-    domain="$(normalize_domain "${raw_domain}")" || exit 2
+    domain="$(normalize_site_address "${raw_domain}")" || exit 2
     require_etc_access write
 
-    file="${SITES_DIR}/${domain}.caddy"
+    file="${SITES_DIR}/$(site_file_name "${domain}")"
     if [[ ! -f "${file}" && -f "${MONITOR_SITE_FILE}" ]] && grep -qxF -- "${domain}" <<<"$(site_file_hosts "${MONITOR_SITE_FILE}")"; then
         die "${domain} serves the status page. To remove it: vps-stack monitor disable"
     fi
     [[ -f "${file}" ]] || die "File ${file} does not exist. To list sites: vps-stack list-sites"
 
     removed_dir="${SITES_DIR}/.removed"
-    target="${removed_dir}/${domain}.caddy.$(date +%Y%m%d-%H%M%S)"
+    target="${removed_dir}/$(site_file_name "${domain}").$(date +%Y%m%d-%H%M%S)"
 
     log_info "Hosts served by this file:"
     site_file_hosts "${file}" | sed 's/^/  /'

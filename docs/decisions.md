@@ -94,8 +94,25 @@ process with access to the certificates. A newline or a curly brace in a
 domain name would allow any directive to be appended. That is why every value
 has to match a strict pattern, the template is filled in by plain text
 substitution without `eval` and without shell expansion, and rendering refuses
-to work before it produces anything from invalid data. Wildcards and non-ASCII
-domains are rejected in 0.1, because that keeps the pattern simple.
+to work before it produces anything from invalid data. Non-ASCII domains are
+rejected, because that keeps the pattern simple. A wildcard is one fixed form,
+`*.` and a domain, and `*` alone means any host; both only with on-demand TLS
+(below).
+
+## Wildcards only with on-demand TLS
+
+A certificate for `*.example.com` needs the DNS-01 challenge: a Caddy build
+with the module of one DNS provider and an API token of that provider on the
+server. That is a custom image to maintain and a credential that can change
+any record of the domain. On-demand TLS needs neither: Caddy obtains a
+certificate per host on its first visit, after an endpoint of the application
+allowed the host, and the same mechanism serves the customers' own domains,
+which a wildcard certificate cannot. The cost is the certificate authority's
+weekly limit per registered domain and one endpoint per server. The endpoint
+is a global option of Caddy, written as a file of its own
+(`sites/.global/`) that the Caddyfile imports, so that the repository's
+Caddyfile stays the same on every server and a `git pull` never meets a
+local change.
 
 ## HSTS without `includeSubDomains` and `preload`
 

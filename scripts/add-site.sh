@@ -18,7 +18,8 @@ Usage: vps-stack add-site <domain> <upstream> [options]
 
 Example: vps-stack add-site app.example.com example-app-web:80
 
-  <domain>     domain name, e.g. app.example.com
+  <domain>     domain name, e.g. app.example.com; with --on-demand-tls also
+               a wildcard ('*.example.com') or any other host ('*')
   <upstream>   container-name:port of the project's web container, on a
                network shared with the proxy, e.g. example-app-web:80
 
@@ -26,6 +27,11 @@ Options:
   --alias <d1,d2>           additional domains served by the same upstream
   --redirect-from <d1,d2>   domains redirected (301) to the main domain
   --max-body <size>         request body size limit, e.g. 50MB (KB, MB, GB)
+  --paths </a,/b*>          serve only these paths (a trailing * matches a
+                            prefix), 404 for everything else
+  --on-demand-tls           a certificate per host on its first visit, only
+                            when the endpoint of 'vps-stack on-demand-tls'
+                            allows it; for '*.example.com' and '*' only
   --server-ip <address>     public address of the server for the DNS check
                             (may be given twice: IPv4 and IPv6)
   --no-dns-check            skip the DNS check
@@ -69,7 +75,7 @@ check_upstream_container() {
 }
 
 main() {
-    local raw_domain="" upstream="" aliases="" redirects="" max_body=""
+    local raw_domain="" upstream="" aliases="" redirects="" max_body="" paths="" on_demand=0
     local dns_check=1 force=0
     SERVER_IPS=()
 
@@ -95,6 +101,12 @@ main() {
                 SERVER_IPS+=("$2")
                 shift
                 ;;
+            --paths)
+                need_value "$@"
+                paths="$2"
+                shift
+                ;;
+            --on-demand-tls) on_demand=1 ;;
             --no-dns-check) dns_check=0 ;;
             --force) force=1 ;;
             --dry-run) DRY_RUN=1 ;;
@@ -125,16 +137,21 @@ main() {
     fi
 
     # 1. Validation. site_render validates every value before rendering.
-    local content domain target
+    local content domain kind target
     local -a hosts=()
-    content="$(site_render "${SITE_TEMPLATE}" "${raw_domain}" "${upstream}" "${aliases}" "${redirects}" "${max_body}")" ||
+    content="$(site_render "${SITE_TEMPLATE}" "${raw_domain}" "${upstream}" "${aliases}" "${redirects}" "${max_body}" "${on_demand}" "${paths}")" ||
         die "Invalid arguments. Nothing was changed."
-    domain="$(normalize_domain "${raw_domain}")"
+    domain="$(normalize_site_address "${raw_domain}")"
+    kind="$(site_address_kind "${domain}")"
     local host
     while IFS= read -r host; do
         [[ -n "${host}" ]] && hosts+=("${host}")
     done < <(
-        printf '%s\n' "${domain}"
+        if [[ "${kind}" == "any" ]]; then
+            printf 'https://\n'
+        else
+            printf '%s\n' "${domain}"
+        fi
         normalize_domain_list "${aliases}"
         normalize_domain_list "${redirects}"
     )
@@ -142,7 +159,10 @@ main() {
     require_etc_access write
     stack_config_load "${STACK_ENV_FILE}"
     [[ -d "${SITES_DIR}" ]] || die "Directory ${SITES_DIR} does not exist. Run 'vps-stack provision' first."
-    target="${SITES_DIR}/${domain}.caddy"
+    target="${SITES_DIR}/$(site_file_name "${domain}")"
+    if [[ "${on_demand}" == "1" && ! -f "${ON_DEMAND_TLS_FILE}" ]]; then
+        die "On-demand TLS has no endpoint to ask, so Caddy would refuse it. Set it first: vps-stack on-demand-tls set <url>"
+    fi
 
     # 2. Duplicates in other site files.
     site_refuse_duplicates "${target}" "${hosts[@]}"
@@ -160,8 +180,11 @@ main() {
         fi
     fi
 
-    # 3. DNS.
-    if [[ "${dns_check}" == "1" ]]; then
+    # 3. DNS. A wildcard is checked on a random name under it; any host has
+    # no name to check.
+    if [[ "${kind}" == "any" ]]; then
+        log_info "Any host: no DNS to check. Each domain is checked by the endpoint of on-demand TLS."
+    elif [[ "${dns_check}" == "1" ]]; then
         dns_check_or_confirm "${hosts[@]}"
     else
         log_warn "DNS check skipped (--no-dns-check)."
@@ -190,7 +213,11 @@ main() {
     "${SCRIPT_DIR}/proxy.sh" reload
 
     log_ok "Added ${domain} -> ${upstream}"
-    log_info "The certificate is obtained automatically. To watch: vps-stack proxy logs"
+    if [[ "${on_demand}" == "1" ]]; then
+        log_info "A certificate is obtained on the first visit of each host the endpoint allows. To watch: vps-stack proxy logs"
+    else
+        log_info "The certificate is obtained automatically. To watch: vps-stack proxy logs"
+    fi
 }
 
 main "$@"
