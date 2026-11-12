@@ -9,6 +9,8 @@ incompatible way.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-12
+
 ### Added
 
 - `add-site '*.example.com' <upstream> --on-demand-tls` and
@@ -16,7 +18,7 @@ incompatible way.
   for any host no other site serves (e.g. the customers' own domains). Caddy
   obtains a certificate per host on its first visit, after the endpoint set
   with the new `vps-stack on-demand-tls set <url>` allowed it
-  ([docs/adding-sites.md](docs/adding-sites.md#many-hosts-a-wildcard-or-any-host-with-on-demand-tls)).
+  ([docs/adding-sites.md](https://github.com/forkacper/vps-stack/blob/v0.10.0/docs/adding-sites.md#many-hosts-a-wildcard-or-any-host-with-on-demand-tls)).
 - `add-site --paths /a,/b*`: serve only these paths, 404 for the rest.
 - `check-dns '*.example.com'` checks a random name under the wildcard.
 - `verify`: an error when on-demand sites have no endpoint, or when the
@@ -310,7 +312,8 @@ dropped after it was written. The tag `v0.1.0` points at that commit.
   Compose and Caddy validation, secret scan).
 - Documentation in `docs/`.
 
-[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/forkacper/vps-stack/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/forkacper/vps-stack/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/forkacper/vps-stack/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/forkacper/vps-stack/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/forkacper/vps-stack/compare/v0.6.0...v0.7.0
